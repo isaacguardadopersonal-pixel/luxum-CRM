@@ -28,7 +28,7 @@ export function useClients() {
   const syncToSheets = async (client: Client) => {
     try {
       // Usamos await para manejar mejor el flujo, aunque sea no-cors
-      await fetch("https://script.google.com/macros/s/AKfycbxtxlF_das1T2gNsaWadSJ6ieol8ALM5ahrQ6xTIruFW3Kd9AiuB0RXcRaxtvwD3Zarqg/exec", {
+      await fetch("https://script.google.com/macros/s/AKfycbwOgqCh084v8JWHcOsMuC1y4-VRRMJTlTcOHO5dnplKlBeA8LMnL1Q89-KQgE3I9tduoA/exec", {
         method: "POST",
         mode: "no-cors", 
         headers: { "Content-Type": "application/json" },
@@ -42,7 +42,7 @@ export function useClients() {
 
   const syncBulkToSheets = async (clientsArray: Client[]) => {
     try {
-      await fetch("https://script.google.com/macros/s/AKfycbxtxlF_das1T2gNsaWadSJ6ieol8ALM5ahrQ6xTIruFW3Kd9AiuB0RXcRaxtvwD3Zarqg/exec", {
+      await fetch("https://script.google.com/macros/s/AKfycbwOgqCh084v8JWHcOsMuC1y4-VRRMJTlTcOHO5dnplKlBeA8LMnL1Q89-KQgE3I9tduoA/exec", {
         method: "POST",
         mode: "no-cors", 
         headers: { "Content-Type": "application/json" },
@@ -57,7 +57,7 @@ export function useClients() {
   const pullFromSheets = async (): Promise<boolean> => {
     try {
       // Usamos el fetch estándar (sin no-cors) para que siga el 302 y nos devuelva la data real con Permissive CORS de Google
-      const response = await fetch("https://script.google.com/macros/s/AKfycbxtxlF_das1T2gNsaWadSJ6ieol8ALM5ahrQ6xTIruFW3Kd9AiuB0RXcRaxtvwD3Zarqg/exec");
+      const response = await fetch("https://script.google.com/macros/s/AKfycbwOgqCh084v8JWHcOsMuC1y4-VRRMJTlTcOHO5dnplKlBeA8LMnL1Q89-KQgE3I9tduoA/exec");
       if(!response.ok) throw new Error("Error en la descarga de datos.");
       const downloadedClients: Client[] = await response.json();
       
