@@ -243,7 +243,9 @@ export default function ClientsPage() {
       state: addForm.state || "",
       referredBy: addForm.referredBy || "",
       notes: addForm.notes || "",
-      products: createdProducts
+      products: createdProducts,
+      reminders: [],
+      logs: []
     };
 
     addClients([newClient]);
@@ -1170,7 +1172,7 @@ export default function ClientsPage() {
                   <button
                     onClick={(e) => {
                       e.preventDefault();
-                      const newDrivers = [...(productForm.drivers || []), { firstName: "", lastName: "", phone: "" }];
+                      const newDrivers = [...(productForm.drivers || []), { id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36), firstName: "", lastName: "", phone: "" }];
                       setProductForm({ ...productForm, drivers: newDrivers });
                     }}
                     className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium hover:bg-primary/20 transition-colors"
