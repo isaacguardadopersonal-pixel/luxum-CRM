@@ -25,6 +25,13 @@ export interface Product {
   createdAt?: string;
 }
 
+export interface Reminder {
+  id: string;
+  date: string;
+  notes: string;
+  createdAt: string;
+}
+
 export interface Client {
   id: string;
   status: string;
@@ -41,8 +48,9 @@ export interface Client {
   state: string;
   referredBy: string;
   notes: string;
-  products?: Product[];
-  logs?: ChangeLog[];
+  products: Product[]; // Quitamos el '?' para que siempre sea un array (facilita el map/sync)
+  reminders: Reminder[]; // Quitamos el '?' para evitar el error de TypeScript
+  logs: ChangeLog[]; // Quitamos el '?' para consistencia
 }
 
 export function parseCSVRow(row: Record<string, string>): Client {
@@ -56,7 +64,7 @@ export function parseCSVRow(row: Record<string, string>): Client {
   if (policyNumber || company || premium > 0) {
     products.push({
       id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
-      category: row["Policy Type"] || "Auto", // mapping Policy Type to category
+      category: row["Policy Type"] || "Auto", 
       firstName: row["First Name"] || "",
       lastName: row["Last Name"] || "",
       policyNumber: policyNumber,
@@ -86,7 +94,9 @@ export function parseCSVRow(row: Record<string, string>): Client {
     state: row["State"] || "",
     referredBy: row["Referred By"] || "",
     notes: row["Notes"] || "",
-    products
+    products: products, // Se asigna el array de productos creado arriba
+    reminders: [],      // Inicializado vacío para evitar errores en useClients
+    logs: []            // Inicializado vacío
   };
 }
 
