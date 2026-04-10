@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer base {
+  :root {
+    --background: 228 12% 10%;
+    --foreground: 210 20% 95%;
+
+    --card: 228 12% 14%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 228 12% 14%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 228 12% 20%;
+    --secondary-foreground: 210 20% 90%;
+
+    --muted: 228 10% 18%;
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 45 93% 58%;
+    --accent-foreground: 228 12% 10%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 228 10% 20%;
+    --input: 228 10% 20%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 228 14% 8%;
+    --sidebar-foreground: 215 15% 55%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 228 12% 14%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 228 10% 16%;
+    --sidebar-ring: 217 91% 60%;
+
+    --chart-blue: 217 91% 60%;
+    --chart-green: 142 71% 45%;
+    --chart-yellow: 45 93% 58%;
+    --chart-orange: 24 95% 53%;
+    --chart-red: 0 72% 51%;
+    --chart-purple: 270 70% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50 rounded-xl;
+  }
+  .stat-card {
+    @apply glass-card p-5 transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5;
+  }
+  .sidebar-icon {
+    @apply p-2.5 rounded-xl transition-all duration-200 text-muted-foreground hover:text-foreground hover:bg-secondary;
+  }
+  .sidebar-icon-active {
+    @apply p-2.5 rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/25;
+  }
+  .status-current {
+    @apply bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] border border-[hsl(var(--success))]/20;
+  }
+  .status-quoting {
+    @apply bg-[hsl(var(--warning))]/15 text-[hsl(var(--warning))] border border-[hsl(var(--warning))]/20;
+  }
+  .status-not-interested {
+    @apply bg-[hsl(var(--destructive))]/15 text-[hsl(var(--destructive))] border border-[hsl(var(--destructive))]/20;
+  }
+  .status-opportunities {
+    @apply bg-[hsl(var(--info))]/15 text-[hsl(var(--info))] border border-[hsl(var(--info))]/20;
+  }
+}
