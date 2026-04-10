@@ -70,9 +70,9 @@ export function useClients() {
         const syncLento = async () => {
           for (let i = 0; i < newClients.length; i++) {
             await syncToSheets(newClients[i]);
-            // Esperar 20 Segundos antes del próximo
-            console.log(`Sincronización pausada... esperando 20 segundos para el cliente ${i+1} de ${newClients.length}`);
-            await new Promise(resolve => setTimeout(resolve, 20000));
+            // Esperar 15 Segundos antes del próximo
+            console.log(`Sincronización pausada... esperando 15 segundos para el cliente ${i+1} de ${newClients.length}`);
+            await new Promise(resolve => setTimeout(resolve, 15000));
           }
           console.log("¡Sincronización por goteo finalizada!");
         };
