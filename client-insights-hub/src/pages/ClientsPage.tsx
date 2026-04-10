@@ -85,28 +85,26 @@ export default function ClientsPage() {
 
     const firstName = getVal(["firstname", "first name", "nombre", "nombres"]);
     const lastName = getVal(["lastname", "last name", "apellido", "apellidos"]);
-    // Si no hay nombre y apellido, y es la primera pasada sin headers reales, fallamos. Pero lo evitamos devolviendo null.
-    // Aunque con CSVs malos, tratemos de retornar.
 
     return {
       id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
-      address: getVal(["address", "direccion", "dirección"]),
-      city: getVal(["city", "ciudad"]),
-      state: getVal(["state", "estado"]),
+      address: getVal(["address", "direccion", "dirección", "numero_de_calle", "calle", "street"]),
+      city: getVal(["city", "ciudad", "town", "municipio"]),
+      state: getVal(["state", "estado", "provincia"]),
       firstName: firstName,
       lastName: lastName,
-      workPhone: getVal(["phone", "workphone", "work phone", "teléfono", "telefono", "contacto"]),
-      status: getVal(["status", "estatus", "estado_cliente"]) || "Opportunities",
-      email: getVal(["email", "correo", "correo electronico", "correo electrónico"]),
-      dob: getVal(["dob", "date of birth", "fecha_de_nacimiento", "fecha de nacimiento"]),
-      driversLicense: getVal(["license", "drivers license", "licencia", "numero_de_licencia", "driverslicense"]),
-      dlState: getVal(["dl state", "dlstate", "estado_dl", "estado dl", "dl_state"]),
-      zip: getVal(["zip", "zip code", "zipcode", "código_postal", "codigo postal"]),
+      workPhone: getVal(["phone", "workphone", "work phone", "teléfono", "telefono", "contacto", "celular", "mobile"]),
+      status: getVal(["status", "estatus", "estado_cliente", "condicion"]) || "Opportunities",
+      email: getVal(["email", "correo", "correo electronico", "correo electrónico", "mail"]),
+      dob: getVal(["dob", "date of birth", "fecha_de_nacimiento", "fecha de nacimiento", "nacimiento", "cumpleaños"]),
+      driversLicense: getVal(["license", "drivers license", "licencia", "numero_de_licencia", "driverslicense", "id number"]),
+      dlState: getVal(["dl state", "dlstate", "estado_dl", "estado dl", "dl_state", "estado de licencia"]),
+      zip: getVal(["zip", "zip code", "zipcode", "código_postal", "codigo postal", "codigo_postal", "postal"]),
       referredBy: getVal(["referred by", "referredby", "referido_por", "referido por", "referido"]),
-      notes: getVal(["notes", "notas", "nota"]),
+      notes: getVal(["notes", "notas", "nota", "comentarios", "comments"]),
       products: [],
       reminders: [],
-      logs: [] // added for new Client structure
+      logs: [] 
     };
   };
 
