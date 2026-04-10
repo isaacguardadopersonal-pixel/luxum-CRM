@@ -32,7 +32,8 @@ function doPost(e) {
       driverSheet.appendRow(["nombre", "apellido", "teléfono", "numero_de_poliza", "nombre_customer", "codigo_cliente", "codigo_conductor"]); // index 5 y 6
     }
     
-    var data = JSON.parse(e.postData.contents);
+    var rawData = JSON.parse(e.postData.contents);
+    var dataArray = Array.isArray(rawData) ? rawData : [rawData];
     var fechaActual = new Date();
     
     // Función auxiliar para insertar en fila vacía o sobreescribir ID exacto
@@ -76,13 +77,13 @@ function doPost(e) {
     }
 
     // Función auxiliar para Vaciar (sin borrar fila) entidades eliminadas del CRM
-    function clearRemovedItems(sheet, activeItemsArray, clientIdCol, entityIdCol) {
-      if(!data.id) return;
+    function clearRemovedItems(sheet, activeItemsArray, clientIdCol, entityIdCol, curClientId) {
+      if(!curClientId) return;
       var d = sheet.getDataRange().getValues();
       var activeIds = (activeItemsArray || []).map(function(item) { return item.id; }).filter(function(id){ return !!id; });
       
       for (var r = 1; r < d.length; r++) {
-         if (d[r][clientIdCol] === data.id) {
+         if (d[r][clientIdCol] === curClientId) {
             var eId = d[r][entityIdCol];
             if (activeIds.indexOf(eId) === -1) {
                sheet.getRange(r + 1, 1, 1, sheet.getLastColumn()).clearContent();
@@ -91,117 +92,123 @@ function doPost(e) {
       }
     }
 
-    // ==========================================
-    // 1. Guardar/Actualizar en ficha_de_clientes
-    // ==========================================
-    var clienteNombreC = (data.firstName || "") + (data.lastName ? " " + data.lastName : "");
+    // Procesamos todos los clientes en el Array
+    for (var mainIdx = 0; mainIdx < dataArray.length; mainIdx++) {
+      var data = dataArray[mainIdx];
 
-    var clientRow = [
-      fechaActual,             
-      data.firstName || "",        
-      data.lastName || "",         
-      data.status || "",       
-      data.referredBy || "",
-      data.workPhone || data.phone || "",
-      data.email || "",
-      data.address || "",
-      data.city || "",
-      data.state || "",
-      data.zip || "",
-      data.dob || "",
-      data.driversLicense || "",
-      data.dlState || "",
-      data.id || "" // Col: 14            
-    ];
-    fillOrUpdateEntity(clientSheet, clientRow, data.id, 14);
+      // ==========================================
+      // 1. Guardar/Actualizar en ficha_de_clientes
+      // ==========================================
+      var clienteNombreC = (data.firstName || "") + (data.lastName ? " " + data.lastName : "");
 
-    // ==========================================
-    // 2. Guardar en Recordatorio
-    // ==========================================
-    clearRemovedItems(reminderSheet, data.reminders, 5, 6);
+      var clientRow = [
+        fechaActual,             
+        data.firstName || "",        
+        data.lastName || "",         
+        data.status || "",       
+        data.referredBy || "",
+        data.workPhone || data.phone || "",
+        data.email || "",
+        data.address || "",
+        data.city || "",
+        data.state || "",
+        data.zip || "",
+        data.dob || "",
+        data.driversLicense || "",
+        data.dlState || "",
+        data.id || "" // Col: 14            
+      ];
+      fillOrUpdateEntity(clientSheet, clientRow, data.id, 14);
 
-    if (data.reminders && data.reminders.length > 0) {
-      for (var j = 0; j < data.reminders.length; j++) {
-        var rExt = data.reminders[j];
-        if(!rExt.id) {
-            // Autogenerar ID si no trae
-            rExt.id = "rem_" + Math.random().toString(36).substr(2,9); 
+      // ==========================================
+      // 2. Guardar en Recordatorio
+      // ==========================================
+      clearRemovedItems(reminderSheet, data.reminders, 5, 6, data.id);
+
+      if (data.reminders && data.reminders.length > 0) {
+        for (var j = 0; j < data.reminders.length; j++) {
+          var rExt = data.reminders[j];
+          if(!rExt.id) {
+              // Autogenerar ID si no trae
+              rExt.id = "rem_" + Math.random().toString(36).substr(2,9); 
+          }
+          var reminderRow = [
+            fechaActual,                       
+            clienteNombreC,                   
+            data.workPhone || data.phone || "",                  
+            rExt.date || "",                   
+            rExt.notes || "",                  
+            data.id || "",                      
+            rExt.id || "" // Col: 6
+          ];
+          fillOrUpdateEntity(reminderSheet, reminderRow, rExt.id, 6);
         }
-        var reminderRow = [
-          fechaActual,                       
-          clienteNombreC,                   
-          data.workPhone || data.phone || "",                  
-          rExt.date || "",                   
-          rExt.notes || "",                  
-          data.id || "",                      
-          rExt.id || "" // Col: 6
-        ];
-        fillOrUpdateEntity(reminderSheet, reminderRow, rExt.id, 6);
       }
-    }
 
-    // ==========================================
-    // 3. Guardar en products y 4. conductores_adicionales
-    // ==========================================
-    clearRemovedItems(productSheet, data.products, 9, 10);
-    
-    // Extraer todos los conductores activos de todos los productos
-    var allActiveDrivers = [];
-    if (data.products && data.products.length > 0) {
-      for (var a = 0; a < data.products.length; a++) {
-        if(data.products[a].drivers) {
-            for(var b=0; b < data.products[a].drivers.length; b++){
-                allActiveDrivers.push(data.products[a].drivers[b]);
+      // ==========================================
+      // 3. Guardar en products y 4. conductores_adicionales
+      // ==========================================
+      clearRemovedItems(productSheet, data.products, 9, 10, data.id);
+      
+      // Extraer todos los conductores activos de todos los productos
+      var allActiveDrivers = [];
+      if (data.products && data.products.length > 0) {
+        for (var a = 0; a < data.products.length; a++) {
+          if(data.products[a].drivers) {
+              for(var b=0; b < data.products[a].drivers.length; b++){
+                  allActiveDrivers.push(data.products[a].drivers[b]);
+              }
+          }
+        }
+      }
+      clearRemovedItems(driverSheet, allActiveDrivers, 5, 6, data.id);
+
+      if (data.products && data.products.length > 0) {
+        for (var i = 0; i < data.products.length; i++) {
+          var p = data.products[i];
+          if(!p.id) p.id = "prod_" + Math.random().toString(36).substr(2,9);
+
+          var polName = p.firstName ? p.firstName : data.firstName || "";
+          var polLast = p.lastName ? p.lastName : data.lastName || "";
+
+          var productRow = [
+            p.createdAt || fechaActual, // Usa el createdAt del producto o fecha actual si es nuevo                      
+            p.category || "",                  
+            polName,
+            polLast,
+            p.company || "",                   
+            p.premium || 0,                    
+            p.licenseNumber || data.driversLicense || "",              
+            p.effectiveDate || "",
+            p.expirationDate || "",
+            data.id || "",
+            p.id || "" // Col: 10
+          ];
+          fillOrUpdateEntity(productSheet, productRow, p.id, 10);
+
+          if (p.drivers && p.drivers.length > 0) {
+            for (var dIdx = 0; dIdx < p.drivers.length; dIdx++) {
+              var driver = p.drivers[dIdx];
+              if(!driver.id) driver.id = "drv_" + Math.random().toString(36).substr(2,9);
+              
+              var driverRow = [
+                driver.firstName || "",
+                driver.lastName || "",
+                driver.phone || "",
+                p.policyNumber || "",
+                clienteNombreC, 
+                data.id || "",
+                driver.id || "" // Col: 6
+              ];
+              fillOrUpdateEntity(driverSheet, driverRow, driver.id, 6);
             }
-        }
-      }
-    }
-    clearRemovedItems(driverSheet, allActiveDrivers, 5, 6);
-
-    if (data.products && data.products.length > 0) {
-      for (var i = 0; i < data.products.length; i++) {
-        var p = data.products[i];
-        if(!p.id) p.id = "prod_" + Math.random().toString(36).substr(2,9);
-
-        var polName = p.firstName ? p.firstName : data.firstName || "";
-        var polLast = p.lastName ? p.lastName : data.lastName || "";
-
-        var productRow = [
-          p.createdAt || fechaActual, // Usa el createdAt del producto o fecha actual si es nuevo                      
-          p.category || "",                  
-          polName,
-          polLast,
-          p.company || "",                   
-          p.premium || 0,                    
-          p.licenseNumber || data.driversLicense || "",              
-          p.effectiveDate || "",
-          p.expirationDate || "",
-          data.id || "",
-          p.id || "" // Col: 10
-        ];
-        fillOrUpdateEntity(productSheet, productRow, p.id, 10);
-
-        if (p.drivers && p.drivers.length > 0) {
-          for (var dIdx = 0; dIdx < p.drivers.length; dIdx++) {
-            var driver = p.drivers[dIdx];
-            if(!driver.id) driver.id = "drv_" + Math.random().toString(36).substr(2,9);
-            
-            var driverRow = [
-              driver.firstName || "",
-              driver.lastName || "",
-              driver.phone || "",
-              p.policyNumber || "",
-              clienteNombreC, 
-              data.id || "",
-              driver.id || "" // Col: 6
-            ];
-            fillOrUpdateEntity(driverSheet, driverRow, driver.id, 6);
           }
         }
       }
     }
 
     return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Upsert dinámico ejecutado exitosamente." }))
+
       .setMimeType(ContentService.MimeType.JSON);
       
   } catch (error) {

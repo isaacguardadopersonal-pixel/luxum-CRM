@@ -40,6 +40,20 @@ export function useClients() {
     }
   };
 
+  const syncBulkToSheets = async (clientsArray: Client[]) => {
+    try {
+      await fetch("https://script.google.com/macros/s/AKfycbzBdynkmS3RLmJr--OdmTwOCxiW482MVlOO54NNS2PfuDXh_vWNAX49ZDlq9wieDpzKSQ/exec", {
+        method: "POST",
+        mode: "no-cors", 
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(clientsArray), // Envío masivo de clientes en 1 sola llamada (array)
+      });
+      console.log("Sincronización MASIVA con Sheets:", clientsArray.length, "clientes");
+    } catch (error) {
+      console.error("Error sincronizando (Bulk) con Sheets:", error);
+    }
+  };
+
   const addClients = (newClients: Client[]) => {
     setClients((prev) => {
       const updated = [...newClients, ...prev];
@@ -47,15 +61,10 @@ export function useClients() {
       return updated;
     });
 
-    // Sincronizamos secuencialmente para evitar que Google Sheets bloquee por "Rate Limit" (429) por hacer 50 peticiones de golpe
-    const syncAll = async () => {
-      for (const client of newClients) {
-        await syncToSheets(client);
-        // Pequeño retraso de 300ms entre cada inserción
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-    };
-    syncAll();
+    // Enviar a Google de golpe en 1 sola petición súper-rápida (Bulk Insert)
+    if (newClients.length > 0) {
+      syncBulkToSheets(newClients);
+    }
   };
 
   const updateClient = (id: string, updatedClient: Partial<Client>) => {
