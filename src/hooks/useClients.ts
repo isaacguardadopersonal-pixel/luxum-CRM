@@ -28,7 +28,7 @@ export function useClients() {
   const syncToSheets = async (client: Client) => {
     try {
       // Usamos await para manejar mejor el flujo, aunque sea no-cors
-      await fetch("https://script.google.com/macros/s/AKfycbzPAP5Og5UGOMBTKvCD_ZjZP7eMM43TKSknPY6j0bNzAfN0O8qC1zTlKDDEHEKqdsa3PQ/exec", {
+      await fetch("https://script.google.com/macros/s/AKfycby5nmbpaePlJQTGE6wrgzcGniF4BikglsF2E9W3G5gCiCkpRwD8ZHOfvpTih0ujMWRl3A/exec", {
         method: "POST",
         mode: "no-cors", 
         headers: { "Content-Type": "application/json" },
