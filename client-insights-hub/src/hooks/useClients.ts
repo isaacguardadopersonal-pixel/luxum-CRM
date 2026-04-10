@@ -42,7 +42,7 @@ export function useClients() {
 
   const syncBulkToSheets = async (clientsArray: Client[]) => {
     try {
-      await fetch("https://script.google.com/macros/s/AKfycbzBdynkmS3RLmJr--OdmTwOCxiW482MVlOO54NNS2PfuDXh_vWNAX49ZDlq9wieDpzKSQ/exec", {
+      await fetch("https://script.google.com/macros/s/AKfycbwutwaAXWecBMzwnfK_NAeqlMlFgjgbK0amY3gkszPdBcjboyV3e7mIcCmYuISxwKxk0g/exec", {
         method: "POST",
         mode: "no-cors", 
         headers: { "Content-Type": "application/json" },
