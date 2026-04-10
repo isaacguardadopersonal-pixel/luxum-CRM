@@ -7,11 +7,12 @@ import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, Phone, Mail,
 import * as XLSX from 'xlsx';
 
 export default function ClientsPage() {
-  const { clients, loading, addClients, updateClient } = useClients();
+  const { clients, loading, addClients, updateClient, pullFromSheets } = useClients();
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [editingClient, setEditingClient] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Client>>({});
@@ -304,6 +305,25 @@ export default function ClientsPage() {
           <p className="text-sm text-muted-foreground mt-1">{filtered.length} {t("clients.found")}</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={async () => {
+              if(confirm("ATENCIÓN: Esto descargará la base de datos de Google Sheets y SOBREESCRIBIRÁ el CRM actual con su estado exacto. ¿Continuar?")) {
+                setIsSyncing(true);
+                const success = await pullFromSheets();
+                setIsSyncing(false);
+                if(success) alert("¡Sincronización Bidireccional Exitosa! Has descargado la última versión de la nube.");
+              }
+            }}
+            disabled={isSyncing}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600/10 text-indigo-400 border border-indigo-600/30 rounded-lg text-sm font-medium hover:bg-indigo-600/20 transition-colors"
+          >
+            {isSyncing ? (
+              <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+            )}
+            {"Sincronizar Nube"}
+          </button>
           <button
             onClick={() => setShowImportModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground border border-border rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors"

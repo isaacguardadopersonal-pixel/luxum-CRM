@@ -46,11 +46,32 @@ export function useClients() {
         method: "POST",
         mode: "no-cors", 
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(clientsArray), // Envío masivo de clientes en 1 sola llamada (array)
+        body: JSON.stringify(clientsArray), 
       });
       console.log("Sincronización MASIVA con Sheets:", clientsArray.length, "clientes");
     } catch (error) {
       console.error("Error sincronizando (Bulk) con Sheets:", error);
+    }
+  };
+
+  const pullFromSheets = async (): Promise<boolean> => {
+    try {
+      // Usamos el fetch estándar (sin no-cors) para que siga el 302 y nos devuelva la data real con Permissive CORS de Google
+      const response = await fetch("https://script.google.com/macros/s/AKfycbwutwaAXWecBMzwnfK_NAeqlMlFgjgbK0amY3gkszPdBcjboyV3e7mIcCmYuISxwKxk0g/exec");
+      if(!response.ok) throw new Error("Error en la descarga de datos.");
+      const downloadedClients: Client[] = await response.json();
+      
+      // Sanitizamos y estructuramos
+      if(Array.isArray(downloadedClients)) {
+        setClients(downloadedClients);
+        localStorage.setItem("crm_clients", JSON.stringify(downloadedClients));
+        console.log("Sincronización Inversa O.K. - Se recuperaron", downloadedClients.length, "clientes desde Sheets.");
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Fallo monumental al descargar de Google Sheets:", error);
+      return false;
     }
   };
 
@@ -101,5 +122,5 @@ export function useClients() {
     });
   };
 
-  return { clients, loading, addClients, updateClient };
+  return { clients, loading, addClients, updateClient, pullFromSheets };
 }
