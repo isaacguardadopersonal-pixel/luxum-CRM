@@ -56,15 +56,15 @@ export interface Client {
 export function parseCSVRow(row: Record<string, string>): Client {
   const premiumRaw = (row["Policy Premium"] || "").replace(/[$,"]/g, "").trim();
   const premium = premiumRaw ? parseFloat(premiumRaw) : 0;
-  
+
   const products: Product[] = [];
   const policyNumber = row["Policy Number"] || "";
   const company = row["Company"] || "";
-  
+
   if (policyNumber || company || premium > 0) {
     products.push({
       id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
-      category: row["Policy Type"] || "Auto", 
+      category: row["Policy Type"] || "Auto",
       firstName: row["First Name"] || "",
       lastName: row["Last Name"] || "",
       policyNumber: policyNumber,

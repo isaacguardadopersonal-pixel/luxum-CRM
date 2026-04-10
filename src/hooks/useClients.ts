@@ -28,19 +28,11 @@ export function useClients() {
   const syncToSheets = async (client: Client) => {
     try {
       // Usamos await para manejar mejor el flujo, aunque sea no-cors
-      await fetch("https://script.google.com/macros/s/AKfycby5nmbpaePlJQTGE6wrgzcGniF4BikglsF2E9W3G5gCiCkpRwD8ZHOfvpTih0ujMWRl3A/exec", {
+      await fetch("https://script.google.com/macros/s/AKfycbyLDv84TRoZ6MipbdVyQHakhK2oLms9_Fmvx0XDY9NgPuAqAy9Yy1spWLggXEk-EDYcIw/exec", {
         method: "POST",
         mode: "no-cors", 
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: client.id,
-          name: `${client.firstName} ${client.lastName}`,
-          email: client.email,
-          phone: client.workPhone,
-          status: client.status,
-          products: client.products || [],
-          reminders: client.reminders || [] // Ahora TypeScript ya no marcará error aquí
-        }),
+        body: JSON.stringify(client),
       });
       console.log("Sincronizado con Sheets:", client.firstName);
     } catch (error) {
