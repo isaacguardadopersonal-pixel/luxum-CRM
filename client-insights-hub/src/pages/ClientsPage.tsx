@@ -139,7 +139,10 @@ export default function ClientsPage() {
         if (!row || !row.some(c => c)) continue;
 
         const client = parseRowToClient(row, headers);
-        if (client) newClients.push(client);
+        if (client) {
+          newClients.push(client);
+          if (newClients.length >= 100) break; // Limit to 100
+        }
       }
 
       if (newClients.length > 0) {
@@ -187,6 +190,7 @@ export default function ClientsPage() {
       // Validate that at least some core fields were captured
       if (client && (client.firstName || client.address || client.workPhone || client.email)) {
          newClients.push(client);
+         if (newClients.length >= 100) break; // Limit to 100
       }
     }
 
@@ -1047,7 +1051,7 @@ export default function ClientsPage() {
           <div className="glass-card max-w-3xl w-full p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <div className="mb-6">
               <h2 className="text-lg font-bold text-foreground">Importar Base de Datos Externa</h2>
-              <p className="text-sm text-muted-foreground mt-1">Sube un archivo (.xlsx, .csv) o pega la tabla desde Excel (separada por tabulaciones). Columnas: Address, City, state, FirstName, LastName, Phone, status</p>
+              <p className="text-sm text-muted-foreground mt-1">Sube un archivo (.xlsx, .csv) o pega la tabla desde Excel (separada por tabulaciones). Reconocemos las columnas automáticamente. <strong className="text-primary font-bold">Capacidad máxima: 100 datos</strong> a la vez.</p>
             </div>
 
             <textarea
@@ -1060,7 +1064,7 @@ export default function ClientsPage() {
             <div className="flex justify-between items-center mt-2">
               <label className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors cursor-pointer border border-border">
                 <Upload className="w-4 h-4" />
-                Subir Archivo (.xlsx)
+                Subir Archivo (.xlsx - Max 100)
                 <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileUpload} />
               </label>
 

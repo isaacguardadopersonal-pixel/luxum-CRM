@@ -44,10 +44,18 @@ export function useClients() {
     setClients((prev) => {
       const updated = [...newClients, ...prev];
       localStorage.setItem("crm_clients", JSON.stringify(updated));
-      // Sincronizamos cada nuevo cliente individualmente
-      newClients.forEach(syncToSheets);
       return updated;
     });
+
+    // Sincronizamos secuencialmente para evitar que Google Sheets bloquee por "Rate Limit" (429) por hacer 50 peticiones de golpe
+    const syncAll = async () => {
+      for (const client of newClients) {
+        await syncToSheets(client);
+        // Pequeño retraso de 300ms entre cada inserción
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    };
+    syncAll();
   };
 
   const updateClient = (id: string, updatedClient: Partial<Client>) => {
