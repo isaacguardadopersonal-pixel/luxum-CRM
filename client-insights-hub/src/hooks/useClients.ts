@@ -32,15 +32,7 @@ export function useClients() {
         method: "POST",
         mode: "no-cors", 
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: client.id,
-          name: `${client.firstName} ${client.lastName}`,
-          email: client.email,
-          phone: client.workPhone,
-          status: client.status,
-          products: client.products || [],
-          reminders: client.reminders || [] // Ahora TypeScript ya no marcará error aquí
-        }),
+        body: JSON.stringify(client),
       });
       console.log("Sincronizado con Sheets:", client.firstName);
     } catch (error) {

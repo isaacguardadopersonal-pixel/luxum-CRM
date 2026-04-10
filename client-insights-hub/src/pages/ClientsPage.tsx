@@ -73,6 +73,43 @@ export default function ClientsPage() {
 
   const statuses = ["all", "Current Customer", "Quoting", "Opportunities", "Not Interested"];
 
+  const parseRowToClient = (row: unknown[], headers: string[]): Client | null => {
+    if (!row || row.length === 0) return null;
+    const getVal = (keys: string[]) => {
+      for (const key of keys) {
+        const idx = headers.indexOf(key.toLowerCase());
+        if (idx !== -1 && row[idx] !== undefined) return String(row[idx]);
+      }
+      return "";
+    };
+
+    const firstName = getVal(["firstname", "first name", "nombre", "nombres"]);
+    const lastName = getVal(["lastname", "last name", "apellido", "apellidos"]);
+    // Si no hay nombre y apellido, y es la primera pasada sin headers reales, fallamos. Pero lo evitamos devolviendo null.
+    // Aunque con CSVs malos, tratemos de retornar.
+
+    return {
+      id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
+      address: getVal(["address", "direccion", "dirección"]),
+      city: getVal(["city", "ciudad"]),
+      state: getVal(["state", "estado"]),
+      firstName: firstName,
+      lastName: lastName,
+      workPhone: getVal(["phone", "workphone", "work phone", "teléfono", "telefono", "contacto"]),
+      status: getVal(["status", "estatus", "estado_cliente"]) || "Opportunities",
+      email: getVal(["email", "correo", "correo electronico", "correo electrónico"]),
+      dob: getVal(["dob", "date of birth", "fecha_de_nacimiento", "fecha de nacimiento"]),
+      driversLicense: getVal(["license", "drivers license", "licencia", "numero_de_licencia", "driverslicense"]),
+      dlState: getVal(["dl state", "dlstate", "estado_dl", "estado dl", "dl_state"]),
+      zip: getVal(["zip", "zip code", "zipcode", "código_postal", "codigo postal"]),
+      referredBy: getVal(["referred by", "referredby", "referido_por", "referido por", "referido"]),
+      notes: getVal(["notes", "notas", "nota"]),
+      products: [],
+      reminders: [],
+      logs: [] // added for new Client structure
+    };
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -87,29 +124,24 @@ export default function ClientsPage() {
 
       const newClients: Client[] = [];
       let startIdx = 0;
+      let headers: string[] = ["address", "city", "state", "firstname", "lastname", "phone", "status"]; // fallback
+
       if (data.length > 0) {
-        const firstRow = ((data[0] as unknown[]) || []).map(v => String(v).toLowerCase());
-        if (firstRow.includes('address') || firstRow.includes('city') || firstRow.includes('firstname')) {
+        const firstRow = ((data[0] as unknown[]) || []).map(v => String(v).trim().toLowerCase());
+        // Simple check if it has header row
+        if (firstRow.includes('address') || firstRow.includes('city') || firstRow.includes('firstname') || firstRow.includes('nombre')) {
+          headers = firstRow;
           startIdx = 1;
         }
       }
 
       for (let i = startIdx; i < data.length; i++) {
         const row = data[i] as unknown[];
-        if (!row || row.length === 0) continue;
+        // avoid pure empty rows
+        if (!row || !row.some(c => c)) continue;
 
-        newClients.push({
-          id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
-          address: String(row[0] || ""),
-          city: String(row[1] || ""),
-          state: String(row[2] || ""),
-          firstName: String(row[3] || ""),
-          lastName: String(row[4] || ""),
-          workPhone: String(row[5] || ""),
-          status: String(row[6] || ""),
-          email: "", dob: "", driversLicense: "", dlState: "", zip: "",
-          referredBy: "", notes: "", products: []
-        });
+        const client = parseRowToClient(row, headers);
+        if (client) newClients.push(client);
       }
 
       if (newClients.length > 0) {
@@ -128,30 +160,35 @@ export default function ClientsPage() {
     const lines = importText.trim().split('\n');
     const newClients: Client[] = [];
 
-    const firstLine = lines[0].toLowerCase();
+    let headers: string[] = ["address", "city", "state", "firstname", "lastname", "phone", "status"]; // fallback old columns
     let startIdx = 0;
-    if (firstLine.includes('address') && firstLine.includes('city') && firstLine.includes('firstname')) {
-      startIdx = 1;
+
+    if (lines.length > 0) {
+      const firstRow = lines[0].toLowerCase().split('\t').map(v => v.trim());
+      if (firstRow.includes('address') || firstRow.includes('city') || firstRow.includes('firstname') || firstRow.includes('nombre')) {
+        headers = firstRow;
+        startIdx = 1;
+      } else if (lines[0].toLowerCase().split(',').some(v => v.trim().includes('nombre') || v.trim().includes('firstname'))) {
+        // Fallback for CSV formatted pasted text
+        headers = lines[0].toLowerCase().split(',').map(v => v.trim());
+        startIdx = 1;
+      }
     }
 
     for (let i = startIdx; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
-      const columns = line.split('\t');
 
-      if (columns.length >= 7) {
-        newClients.push({
-          id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
-          address: columns[0] || "",
-          city: columns[1] || "",
-          state: columns[2] || "",
-          firstName: columns[3] || "",
-          lastName: columns[4] || "",
-          workPhone: columns[5] || "",
-          status: columns[6] || "",
-          email: "", dob: "", driversLicense: "", dlState: "", zip: "",
-          referredBy: "", notes: "", products: []
-        });
+      let columns = line.split('\t');
+      // basic fallback if user pasted CSV with commas directly instead of tabs
+      if (columns.length === 1 && line.includes(',')) {
+        columns = line.split(',');
+      }
+
+      const client = parseRowToClient(columns, headers);
+      // Validate that at least some core fields were captured
+      if (client && (client.firstName || client.address || client.workPhone || client.email)) {
+         newClients.push(client);
       }
     }
 
