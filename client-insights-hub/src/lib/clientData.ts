@@ -5,6 +5,7 @@ export interface ChangeLog {
 }
 
 export interface ProductDriver {
+  id: string;
   firstName: string;
   lastName: string;
   phone: string;

@@ -1,4 +1,4 @@
-// Este código recibe los datos de tu CRM y los guarda
+// Este código recibe los datos de tu CRM y los guarda con el nuevo sistema de actualizacion exacta
 function doPost(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -6,41 +6,94 @@ function doPost(e) {
     // 1. Hoja: ficha_de_clientes
     var clientSheet = ss.getSheetByName("ficha_de_clientes");
     if (!clientSheet) {
-      // Si por alguna razón la primera hoja ya existe con otro nombre, la renombramos o creamos
       clientSheet = ss.getSheets()[0];
       clientSheet.setName("ficha_de_clientes");
-      clientSheet.appendRow(["fecha_de_creacion", "nombre", "apellido", "estado", "referido_por", "contacto", "email", "numero_de_calle", "ciudad", "estado", "código_postal", "fecha_de_nacimiento", "licencia", "estado_Dl", "codigo"]);
+      clientSheet.appendRow(["fecha_de_creacion", "nombre", "apellido", "estado", "referido_por", "contacto", "email", "numero_de_calle", "ciudad", "estado", "código_postal", "fecha_de_nacimiento", "licencia", "estado_Dl", "codigo"]); // index 14
     }
     
     // 2. Hoja: Recordatorio
     var reminderSheet = ss.getSheetByName("Recordatorio");
     if (!reminderSheet) {
       reminderSheet = ss.insertSheet("Recordatorio");
-      reminderSheet.appendRow(["fecha_de_creacion", "cliente", "teléfono", "fecha_agendad", "notas", "codigo"]);
+      reminderSheet.appendRow(["fecha_de_creacion", "cliente", "teléfono", "fecha_agendad", "notas", "codigo_cliente", "codigo_recordatorio"]); // index 5 y 6
     }
 
     // 3. Hoja: products
     var productSheet = ss.getSheetByName("products");
     if (!productSheet) {
       productSheet = ss.insertSheet("products");
-      productSheet.appendRow(["fecha_de_creacion", "categoría", "nombre_en_la_poliza", "apellido_en_la_poliza", "compañía", "Prima", "numero_de_licencia", "fecha_de_efectividad", "fecha_de_vencimiento", "codigo"]);
+      productSheet.appendRow(["fecha_de_creacion", "categoría", "nombre_en_la_poliza", "apellido_en_la_poliza", "compañía", "Prima", "numero_de_licencia", "fecha_de_efectividad", "fecha_de_vencimiento", "codigo_cliente", "codigo_producto"]); // index 9 y 10
     }
 
     // 4. Hoja: conductores_adicionales
     var driverSheet = ss.getSheetByName("conductores_adicionales");
     if (!driverSheet) {
       driverSheet = ss.insertSheet("conductores_adicionales");
-      driverSheet.appendRow(["nombre", "apellido", "teléfono", "numero_de_poliza", "nombre_customer", "codigo"]);
+      driverSheet.appendRow(["nombre", "apellido", "teléfono", "numero_de_poliza", "nombre_customer", "codigo_cliente", "codigo_conductor"]); // index 5 y 6
     }
     
-    // Lee la información que manda tu aplicación React
     var data = JSON.parse(e.postData.contents);
     var fechaActual = new Date();
     
+    // Función auxiliar para insertar en fila vacía o sobreescribir ID exacto
+    function fillOrUpdateEntity(sheet, rowArray, entityId, idColIndex) {
+      if(!entityId) entityId = "NO_ID";
+      var sData = sheet.getDataRange().getValues();
+      var targetRow = -1;
+      var firstEmptyRow = -1;
+
+      for (var i = 1; i < sData.length; i++) {
+        var rowContent = sData[i];
+        var isEmpty = true;
+        for (var j = 0; j < Math.min(rowContent.length, 5); j++) {
+          if (rowContent[j] !== "" && rowContent[j] !== null) {
+            isEmpty = false;
+            break;
+          }
+        }
+
+        if (isEmpty && firstEmptyRow === -1) {
+          firstEmptyRow = i + 1; 
+        }
+
+        // Si la entidad existe, targeteamos esta
+        if (!isEmpty && rowContent[idColIndex] === entityId) {
+          targetRow = i + 1;
+          break; // Encontramos la exacta, ya no hay que buscar 
+        }
+      }
+
+      if (targetRow !== -1) {
+        // Encontrado: Sobreescribir en la MISMA fila inmobible
+        sheet.getRange(targetRow, 1, 1, rowArray.length).setValues([rowArray]);
+      } else if (firstEmptyRow !== -1) {
+        // Rellenar Fila Vaciada
+        sheet.getRange(firstEmptyRow, 1, 1, rowArray.length).setValues([rowArray]);
+      } else {
+        // Modo fallback: Append (si la tabla esta perfecta sin huecos)
+        sheet.appendRow(rowArray);
+      }
+    }
+
+    // Función auxiliar para Vaciar (sin borrar fila) entidades eliminadas del CRM
+    function clearRemovedItems(sheet, activeItemsArray, clientIdCol, entityIdCol) {
+      if(!data.id) return;
+      var d = sheet.getDataRange().getValues();
+      var activeIds = (activeItemsArray || []).map(function(item) { return item.id; }).filter(function(id){ return !!id; });
+      
+      for (var r = 1; r < d.length; r++) {
+         if (d[r][clientIdCol] === data.id) {
+            var eId = d[r][entityIdCol];
+            if (activeIds.indexOf(eId) === -1) {
+               sheet.getRange(r + 1, 1, 1, sheet.getLastColumn()).clearContent();
+            }
+         }
+      }
+    }
+
     // ==========================================
     // 1. Guardar/Actualizar en ficha_de_clientes
     // ==========================================
-    // Orden requerido: fecha_de_creacion nombre apellido estado referido_por contacto email numero_de_calle ciudad estado código_postal fecha_de_nacimiento licencia estado_Dl codigo
     var clienteNombreC = (data.firstName || "") + (data.lastName ? " " + data.lastName : "");
 
     var clientRow = [
@@ -58,81 +111,63 @@ function doPost(e) {
       data.dob || "",
       data.driversLicense || "",
       data.dlState || "",
-      data.id || ""            
+      data.id || "" // Col: 14            
     ];
-    
-    var clientData = clientSheet.getDataRange().getValues();
-    var rowIndex = -1;
-    // Buscamos la fila del cliente por su ID (Columna 15, index 14)
-    for (var r = clientData.length - 1; r >= 1; r--) {
-      if (clientData[r][14] === data.id && data.id) {
-        rowIndex = r + 1;
-        break;
-      }
-    }
-    
-    if (rowIndex !== -1) {
-      clientSheet.getRange(rowIndex, 1, 1, clientRow.length).setValues([clientRow]);
-    } else {
-      clientSheet.appendRow(clientRow);
-    }
-    
+    fillOrUpdateEntity(clientSheet, clientRow, data.id, 14);
+
     // ==========================================
     // 2. Guardar en Recordatorio
     // ==========================================
-    // Orden: fecha_de_creacion, cliente, teléfono, fecha_agendad, notas, (codigo interno)
-    var remData = reminderSheet.getDataRange().getValues();
-    for (var rr = remData.length - 1; rr >= 1; rr--) {
-      if (remData[rr][5] === data.id && data.id) { 
-        reminderSheet.deleteRow(rr + 1);
-      }
-    }
+    clearRemovedItems(reminderSheet, data.reminders, 5, 6);
 
     if (data.reminders && data.reminders.length > 0) {
       for (var j = 0; j < data.reminders.length; j++) {
         var rExt = data.reminders[j];
+        if(!rExt.id) {
+            // Autogenerar ID si no trae
+            rExt.id = "rem_" + Math.random().toString(36).substr(2,9); 
+        }
         var reminderRow = [
           fechaActual,                       
           clienteNombreC,                   
           data.workPhone || data.phone || "",                  
           rExt.date || "",                   
           rExt.notes || "",                  
-          data.id || ""                      
+          data.id || "",                      
+          rExt.id || "" // Col: 6
         ];
-        reminderSheet.appendRow(reminderRow);
+        fillOrUpdateEntity(reminderSheet, reminderRow, rExt.id, 6);
       }
     }
 
     // ==========================================
     // 3. Guardar en products y 4. conductores_adicionales
     // ==========================================
-    // Limpiar productos anteriores
-    var prodData = productSheet.getDataRange().getValues();
-    for (var rp = prodData.length - 1; rp >= 1; rp--) {
-      if (prodData[rp][9] === data.id && data.id) { 
-        productSheet.deleteRow(rp + 1);
+    clearRemovedItems(productSheet, data.products, 9, 10);
+    
+    // Extraer todos los conductores activos de todos los productos
+    var allActiveDrivers = [];
+    if (data.products && data.products.length > 0) {
+      for (var a = 0; a < data.products.length; a++) {
+        if(data.products[a].drivers) {
+            for(var b=0; b < data.products[a].drivers.length; b++){
+                allActiveDrivers.push(data.products[a].drivers[b]);
+            }
+        }
       }
     }
-
-    // Limpiar conductores anteriores
-    var drvData = driverSheet.getDataRange().getValues();
-    for (var rd = drvData.length - 1; rd >= 1; rd--) {
-      if (drvData[rd][5] === data.id && data.id) {
-        driverSheet.deleteRow(rd + 1);
-      }
-    }
+    clearRemovedItems(driverSheet, allActiveDrivers, 5, 6);
 
     if (data.products && data.products.length > 0) {
       for (var i = 0; i < data.products.length; i++) {
         var p = data.products[i];
+        if(!p.id) p.id = "prod_" + Math.random().toString(36).substr(2,9);
 
-        // AUTO-LLENADO: si no tiene nombre_en_la_poliza, usamos el nombre del cliente general
         var polName = p.firstName ? p.firstName : data.firstName || "";
         var polLast = p.lastName ? p.lastName : data.lastName || "";
 
-        // Orden requerido products: fecha_de_creacion categoría nombre_en_la_poliza apellido_en_la_poliza compañía Prima numero_de_licencia fecha_de_efectividad fecha_de_vencimiento (codigo)
         var productRow = [
-          fechaActual,                       
+          p.createdAt || fechaActual, // Usa el createdAt del producto o fecha actual si es nuevo                      
           p.category || "",                  
           polName,
           polLast,
@@ -141,30 +176,32 @@ function doPost(e) {
           p.licenseNumber || data.driversLicense || "",              
           p.effectiveDate || "",
           p.expirationDate || "",
-          data.id || ""
+          data.id || "",
+          p.id || "" // Col: 10
         ];
-        productSheet.appendRow(productRow);
+        fillOrUpdateEntity(productSheet, productRow, p.id, 10);
 
-        // Guardar cada conductor asociado a este producto en 'conductores_adicionales'
-        // Orden requerido: nombre, apellido, teléfono, numero_de_poliza, nombre_customer, (codigo)
         if (p.drivers && p.drivers.length > 0) {
           for (var dIdx = 0; dIdx < p.drivers.length; dIdx++) {
             var driver = p.drivers[dIdx];
+            if(!driver.id) driver.id = "drv_" + Math.random().toString(36).substr(2,9);
+            
             var driverRow = [
               driver.firstName || "",
               driver.lastName || "",
               driver.phone || "",
               p.policyNumber || "",
-              clienteNombreC, // nombre_customer auto-llenado
-              data.id || ""
+              clienteNombreC, 
+              data.id || "",
+              driver.id || "" // Col: 6
             ];
-            driverSheet.appendRow(driverRow);
+            fillOrUpdateEntity(driverSheet, driverRow, driver.id, 6);
           }
         }
       }
     }
 
-    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Cliente, productos y recordatorios sincronizados." }))
+    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Upsert dinámico ejecutado exitosamente." }))
       .setMimeType(ContentService.MimeType.JSON);
       
   } catch (error) {
@@ -172,4 +209,3 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 }
-
