@@ -36,10 +36,27 @@ function doPost(e) {
     var dataArray = Array.isArray(rawData) ? rawData : [rawData];
     var fechaActual = new Date();
     
-    // Función auxiliar para insertar en fila vacía o sobreescribir ID exacto
+    // ==========================================
+    // SISTEMA CACHÉ RAM (Para Bulk Insert Instantáneo)
+    // ==========================================
+    var memCache = {};
+
+    function getMemData(sheet) {
+      var name = sheet.getName();
+      if (!memCache[name]) {
+        var range = sheet.getDataRange();
+        memCache[name] = { 
+          sheet: sheet, 
+          values: range.getValues() 
+        };
+      }
+      return memCache[name];
+    }
+    
     function fillOrUpdateEntity(sheet, rowArray, entityId, idColIndex) {
       if(!entityId) entityId = "NO_ID";
-      var sData = sheet.getDataRange().getValues();
+      var cache = getMemData(sheet);
+      var sData = cache.values;
       var targetRow = -1;
       var firstEmptyRow = -1;
 
@@ -48,45 +65,42 @@ function doPost(e) {
         var isEmpty = true;
         for (var j = 0; j < Math.min(rowContent.length, 5); j++) {
           if (rowContent[j] !== "" && rowContent[j] !== null) {
-            isEmpty = false;
-            break;
+            isEmpty = false; break;
           }
         }
-
-        if (isEmpty && firstEmptyRow === -1) {
-          firstEmptyRow = i + 1; 
-        }
-
-        // Si la entidad existe, targeteamos esta
+        if (isEmpty && firstEmptyRow === -1) firstEmptyRow = i; 
         if (!isEmpty && rowContent[idColIndex] === entityId) {
-          targetRow = i + 1;
-          break; // Encontramos la exacta, ya no hay que buscar 
+          targetRow = i; break; 
         }
+      }
+
+      var maxCols = sData[0].length;
+      var finalRow = targetRow !== -1 ? sData[targetRow] : (firstEmptyRow !== -1 ? sData[firstEmptyRow] : []);
+      
+      for(var p = 0; p < Math.max(maxCols, rowArray.length); p++) {
+         finalRow[p] = p < rowArray.length ? rowArray[p] : (finalRow[p] || "");
       }
 
       if (targetRow !== -1) {
-        // Encontrado: Sobreescribir en la MISMA fila inmobible
-        sheet.getRange(targetRow, 1, 1, rowArray.length).setValues([rowArray]);
+        sData[targetRow] = finalRow;
       } else if (firstEmptyRow !== -1) {
-        // Rellenar Fila Vaciada
-        sheet.getRange(firstEmptyRow, 1, 1, rowArray.length).setValues([rowArray]);
+        sData[firstEmptyRow] = finalRow;
       } else {
-        // Modo fallback: Append (si la tabla esta perfecta sin huecos)
-        sheet.appendRow(rowArray);
+        sData.push(finalRow);
       }
     }
 
-    // Función auxiliar para Vaciar (sin borrar fila) entidades eliminadas del CRM
     function clearRemovedItems(sheet, activeItemsArray, clientIdCol, entityIdCol, curClientId) {
       if(!curClientId) return;
-      var d = sheet.getDataRange().getValues();
+      var cache = getMemData(sheet);
+      var sData = cache.values;
       var activeIds = (activeItemsArray || []).map(function(item) { return item.id; }).filter(function(id){ return !!id; });
       
-      for (var r = 1; r < d.length; r++) {
-         if (d[r][clientIdCol] === curClientId) {
-            var eId = d[r][entityIdCol];
+      for (var r = 1; r < sData.length; r++) {
+         if (sData[r][clientIdCol] === curClientId) {
+            var eId = sData[r][entityIdCol];
             if (activeIds.indexOf(eId) === -1) {
-               sheet.getRange(r + 1, 1, 1, sheet.getLastColumn()).clearContent();
+               for(var c=0; c<sData[r].length; c++) sData[r][c] = ""; 
             }
          }
       }
@@ -207,6 +221,25 @@ function doPost(e) {
           }
         }
       }
+    }
+
+    // ==========================================
+    // VACÍO INSTANTÁNEO A DISCO DURO (Flush)
+    // ==========================================
+    for (var sheetName in memCache) {
+       var cacheObj = memCache[sheetName];
+       var sData = cacheObj.values;
+       if (sData.length > 0) {
+          var numRows = sData.length;
+          var numCols = Math.max(...sData.map(r => r.length)); // Seguridad ante filas desiguales
+
+          // Pad todas las filas para que Google no lance error de dimensiones desiguales
+          for(var x=0; x < numRows; x++){
+              while(sData[x].length < numCols) sData[x].push("");
+          }
+
+          cacheObj.sheet.getRange(1, 1, numRows, numCols).setValues(sData);
+       }
     }
 
     return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Upsert dinámico ejecutado exitosamente." }))

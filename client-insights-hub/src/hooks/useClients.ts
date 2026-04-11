@@ -25,21 +25,6 @@ export function useClients() {
     }
   }, []);
 
-  const syncToSheets = async (client: Client) => {
-    try {
-      // Usamos await para manejar mejor el flujo, aunque sea no-cors
-      await fetch("https://script.google.com/macros/s/AKfycbxNW_iqrbbUCqpKI-jgCv6PaUPCyxH36MEaFAMMHSoxKcFWuwrUe43H6XtT3AZKHEDebg/exec", {
-        method: "POST",
-        mode: "no-cors", 
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(client),
-      });
-      console.log("Sincronizado con Sheets:", client.firstName);
-    } catch (error) {
-      console.error("Error sincronizando con Sheets:", error);
-    }
-  };
-
   const syncBulkToSheets = async (clientsArray: Client[]) => {
     try {
       await fetch("https://script.google.com/macros/s/AKfycbxNW_iqrbbUCqpKI-jgCv6PaUPCyxH36MEaFAMMHSoxKcFWuwrUe43H6XtT3AZKHEDebg/exec", {
@@ -85,19 +70,10 @@ export function useClients() {
     if (newClients.length > 0) {
       if (newClients.length === 1) {
         // Un solo cliente, mandarlo directo
-        syncToSheets(newClients[0]);
+        syncBulkToSheets([newClients[0]]);
       } else {
-        // Enviar lentamente: 1 cliente cada 20 segundos
-        const syncLento = async () => {
-          for (let i = 0; i < newClients.length; i++) {
-            await syncToSheets(newClients[i]);
-            // Esperar 15 Segundos antes del próximo
-            console.log(`Sincronización pausada... esperando 15 segundos para el cliente ${i+1} de ${newClients.length}`);
-            await new Promise(resolve => setTimeout(resolve, 15000));
-          }
-          console.log("¡Sincronización por goteo finalizada!");
-        };
-        syncLento();
+        // Enviar a Google de golpe en 1 sola petición súper-rápida (Bulk Insert Memoria Ram)
+        syncBulkToSheets(newClients);
       }
     }
   };
