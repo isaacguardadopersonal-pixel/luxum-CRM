@@ -7,7 +7,7 @@ import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, Phone, Mail,
 import * as XLSX from 'xlsx';
 
 export default function ClientsPage() {
-  const { clients, loading, addClients, updateClient, pullFromSheets } = useClients();
+  const { clients, loading, addClients, updateClient, deleteClient, pullFromSheets } = useClients();
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -482,6 +482,18 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if(window.confirm("¿Seguro que deseas eliminar este cliente por completo? Esta acción no se puede deshacer.")) {
+                              deleteClient(client.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Eliminar Cliente"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                         {client.workPhone && (
                           <a href={`tel:${client.workPhone}`} onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
                             <Phone className="w-3.5 h-3.5" />
