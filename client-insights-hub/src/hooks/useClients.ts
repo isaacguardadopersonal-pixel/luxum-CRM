@@ -92,7 +92,7 @@ export function useClients() {
 
       if (clientToSync) {
         localStorage.setItem("crm_clients", JSON.stringify(updated));
-        syncToSheets(clientToSync);
+        syncBulkToSheets([clientToSync]);
       }
       return updated;
     });
