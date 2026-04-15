@@ -112,14 +112,7 @@ export default function Dashboard() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
-    const premiumByType: Record<string, number> = {
-      Auto: 0,
-      Home: 0,
-      Rent: 0,
-      Comercial: 0,
-      "Commercial auto": 0,
-      Life: 0,
-    };
+    const premiumByType: Record<string, number> = {};
 
     monthProductsInCurrent.forEach((p) => {
       if (p.category && p.premium) {
