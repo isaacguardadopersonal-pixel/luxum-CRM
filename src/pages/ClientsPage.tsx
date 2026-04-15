@@ -2,9 +2,10 @@ import { useMemo, useState } from "react";
 import { CRMLayout } from "@/components/CRMLayout";
 import { useClients } from "@/hooks/useClients";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getStatusColor, Client, Product, ChangeLog } from "@/lib/clientData";
+import { getStatusColor, Client, Product, ChangeLog, parseCSVRow } from "@/lib/clientData";
 import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, Phone, Mail, Eye, Upload, Edit, Trash2 } from "lucide-react";
 import * as XLSX from 'xlsx';
+import Papa from "papaparse";
 
 export default function ClientsPage() {
   const { clients, loading, addClients, updateClient, deleteClient, deleteAllClients } = useClients();
@@ -81,34 +82,17 @@ export default function ClientsPage() {
       const wb = XLSX.read(bstr, { type: 'binary' });
       const wsname = wb.SheetNames[0];
       const ws = wb.Sheets[wsname];
-      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
       
-      const newClients: Client[] = [];
-      let startIdx = 0;
-      if (data.length > 0) {
-        const firstRow = ((data[0] as unknown[]) || []).map(v => String(v).toLowerCase());
-        if (firstRow.includes('address') || firstRow.includes('city') || firstRow.includes('firstname')) {
-          startIdx = 1;
+      // defval: "" rellena celdas vacías y usa la primera fila como nombres de Llaves Obj
+      const data = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, any>[];
+      
+      const newClients: Client[] = data.map(rawRow => {
+        const rowData: Record<string, string> = {};
+        for (const [key, value] of Object.entries(rawRow)) {
+           rowData[key.trim()] = String(value).trim();
         }
-      }
-
-      for (let i = startIdx; i < data.length; i++) {
-        const row = data[i] as unknown[];
-        if (!row || row.length === 0) continue;
-        
-        newClients.push({
-            id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
-            address: String(row[0] || ""),
-            city: String(row[1] || ""),
-            state: String(row[2] || ""),
-            firstName: String(row[3] || ""),
-            lastName: String(row[4] || ""),
-            workPhone: String(row[5] || ""),
-            status: String(row[6] || ""),
-            email: "", dob: "", driversLicense: "", dlState: "", zip: "",
-            referredBy: "", notes: "", products: []
-        });
-      }
+        return parseCSVRow(rowData);
+      });
 
       if (newClients.length > 0) {
           addClients(newClients);
@@ -123,35 +107,17 @@ export default function ClientsPage() {
 
   const handleImportData = () => {
     if (!importText.trim()) return;
-    const lines = importText.trim().split('\n');
-    const newClients: Client[] = [];
     
-    const firstLine = lines[0].toLowerCase();
-    let startIdx = 0;
-    if (firstLine.includes('address') && firstLine.includes('city') && firstLine.includes('firstname')) {
-        startIdx = 1;
-    }
-
-    for (let i = startIdx; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        const columns = line.split('\t'); 
-        
-        if (columns.length >= 7) {
-            newClients.push({
-                id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
-                address: columns[0] || "",
-                city: columns[1] || "",
-                state: columns[2] || "",
-                firstName: columns[3] || "",
-                lastName: columns[4] || "",
-                workPhone: columns[5] || "",
-                status: columns[6] || "",
-                email: "", dob: "", driversLicense: "", dlState: "", zip: "",
-                referredBy: "", notes: "", products: []
-            });
-        }
-    }
+    // Papa.parse interceptará comas o tabuladores dinámicamente y emparejará la primera fila a llaves de Obj.
+    const result = Papa.parse(importText.trim(), { header: true, skipEmptyLines: true });
+    
+    const newClients: Client[] = (result.data as Record<string, any>[]).map(rawRow => {
+      const rowData: Record<string, string> = {};
+      for (const [key, value] of Object.entries(rawRow)) {
+         rowData[key.trim()] = String(value).trim();
+      }
+      return parseCSVRow(rowData);
+    });
 
     if (newClients.length > 0) {
         addClients(newClients);

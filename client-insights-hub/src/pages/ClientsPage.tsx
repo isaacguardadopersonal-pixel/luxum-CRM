@@ -2,9 +2,10 @@ import { useMemo, useState } from "react";
 import { CRMLayout } from "@/components/CRMLayout";
 import { useClients } from "@/hooks/useClients";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getStatusColor, Client, Product, ChangeLog, Reminder } from "@/lib/clientData";
+import { getStatusColor, Client, Product, ChangeLog, Reminder, parseCSVRow } from "@/lib/clientData";
 import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, Phone, Mail, Eye, Upload, Edit, Trash2 } from "lucide-react";
 import * as XLSX from 'xlsx';
+import Papa from "papaparse";
 
 export default function ClientsPage() {
   const { clients, loading, addClients, updateClient, deleteClient, pullFromSheets, deleteAllClients } = useClients();
@@ -74,41 +75,6 @@ export default function ClientsPage() {
 
   const statuses = ["all", "Current Customer", "Quoting", "Opportunities", "Not Interested"];
 
-  const parseRowToClient = (row: unknown[], headers: string[]): Client | null => {
-    if (!row || row.length === 0) return null;
-    const getVal = (keys: string[]) => {
-      for (const key of keys) {
-        const idx = headers.indexOf(key.toLowerCase());
-        if (idx !== -1 && row[idx] !== undefined) return String(row[idx]);
-      }
-      return "";
-    };
-
-    const firstName = getVal(["firstname", "first name", "nombre", "nombres"]);
-    const lastName = getVal(["lastname", "last name", "apellido", "apellidos"]);
-
-    return {
-      id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
-      address: getVal(["address", "direccion", "dirección", "numero_de_calle", "calle", "street"]),
-      city: getVal(["city", "ciudad", "town", "municipio"]),
-      state: getVal(["state", "estado", "provincia"]),
-      firstName: firstName,
-      lastName: lastName,
-      workPhone: getVal(["phone", "workphone", "work phone", "teléfono", "telefono", "contacto", "celular", "mobile"]),
-      status: getVal(["status", "estatus", "estado_cliente", "condicion"]) || "Opportunities",
-      email: getVal(["email", "correo", "correo electronico", "correo electrónico", "mail"]),
-      dob: getVal(["dob", "date of birth", "fecha_de_nacimiento", "fecha de nacimiento", "nacimiento", "cumpleaños"]),
-      driversLicense: getVal(["license", "drivers license", "licencia", "numero_de_licencia", "driverslicense", "id number"]),
-      dlState: getVal(["dl state", "dlstate", "estado_dl", "estado dl", "dl_state", "estado de licencia"]),
-      zip: getVal(["zip", "zip code", "zipcode", "código_postal", "codigo postal", "codigo_postal", "postal"]),
-      referredBy: getVal(["referred by", "referredby", "referido_por", "referido por", "referido"]),
-      notes: getVal(["notes", "notas", "nota", "comentarios", "comments"]),
-      products: [],
-      reminders: [],
-      logs: [] 
-    };
-  };
-
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -119,37 +85,21 @@ export default function ClientsPage() {
       const wb = XLSX.read(bstr, { type: 'binary' });
       const wsname = wb.SheetNames[0];
       const ws = wb.Sheets[wsname];
-      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-
-      const newClients: Client[] = [];
-      let startIdx = 0;
-      let headers: string[] = ["address", "city", "state", "firstname", "lastname", "phone", "status"]; // fallback
-
-      if (data.length > 0) {
-        const firstRow = ((data[0] as unknown[]) || []).map(v => String(v).trim().toLowerCase());
-        // Simple check if it has header row
-        if (firstRow.includes('address') || firstRow.includes('city') || firstRow.includes('firstname') || firstRow.includes('nombre')) {
-          headers = firstRow;
-          startIdx = 1;
+      
+      const data = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, any>[];
+      
+      const newClients: Client[] = data.map(rawRow => {
+        const rowData: Record<string, string> = {};
+        for (const [key, value] of Object.entries(rawRow)) {
+           rowData[key.trim()] = String(value).trim();
         }
-      }
-
-      for (let i = startIdx; i < data.length; i++) {
-        const row = data[i] as unknown[];
-        // avoid pure empty rows
-        if (!row || !row.some(c => c)) continue;
-
-        const client = parseRowToClient(row, headers);
-        if (client) {
-          newClients.push(client);
-          if (newClients.length >= 100) break; // Limit to 100
-        }
-      }
+        return parseCSVRow(rowData);
+      });
 
       if (newClients.length > 0) {
-        addClients(newClients);
-        setShowImportModal(false);
-        e.target.value = "";
+          addClients(newClients);
+          setShowImportModal(false);
+          e.target.value = "";
       } else {
         alert(t("clients.modal.import_error_empty"));
       }
@@ -159,48 +109,24 @@ export default function ClientsPage() {
 
   const handleImportData = () => {
     if (!importText.trim()) return;
-    const lines = importText.trim().split('\n');
-    const newClients: Client[] = [];
-
-    let headers: string[] = ["address", "city", "state", "firstname", "lastname", "phone", "status"]; // fallback old columns
-    let startIdx = 0;
-
-    if (lines.length > 0) {
-      const firstRow = lines[0].toLowerCase().split('\t').map(v => v.trim());
-      if (firstRow.includes('address') || firstRow.includes('city') || firstRow.includes('firstname') || firstRow.includes('nombre')) {
-        headers = firstRow;
-        startIdx = 1;
-      } else if (lines[0].toLowerCase().split(',').some(v => v.trim().includes('nombre') || v.trim().includes('firstname'))) {
-        // Fallback for CSV formatted pasted text
-        headers = lines[0].toLowerCase().split(',').map(v => v.trim());
-        startIdx = 1;
+    
+    // Papa.parse interceptará comas o tabuladores dinámicamente y emparejará la primera fila a llaves de Obj.
+    const result = Papa.parse(importText.trim(), { header: true, skipEmptyLines: true });
+    
+    const newClients: Client[] = (result.data as Record<string, any>[]).map(rawRow => {
+      const rowData: Record<string, string> = {};
+      for (const [key, value] of Object.entries(rawRow)) {
+         rowData[key.trim()] = String(value).trim();
       }
-    }
-
-    for (let i = startIdx; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-
-      let columns = line.split('\t');
-      // basic fallback if user pasted CSV with commas directly instead of tabs
-      if (columns.length === 1 && line.includes(',')) {
-        columns = line.split(',');
-      }
-
-      const client = parseRowToClient(columns, headers);
-      // Validate that at least some core fields were captured
-      if (client && (client.firstName || client.address || client.workPhone || client.email)) {
-         newClients.push(client);
-         if (newClients.length >= 100) break; // Limit to 100
-      }
-    }
+      return parseCSVRow(rowData);
+    });
 
     if (newClients.length > 0) {
-      addClients(newClients);
-      setShowImportModal(false);
-      setImportText("");
+        addClients(newClients);
+        setShowImportModal(false);
+        setImportText("");
     } else {
-      alert(t("clients.modal.import_error_invalid"));
+        alert(t("clients.modal.import_error_invalid"));
     }
   };
 
