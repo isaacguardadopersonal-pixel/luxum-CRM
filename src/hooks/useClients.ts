@@ -1,85 +1,157 @@
 import { useState, useEffect } from "react";
-import Papa from "papaparse";
-import { Client, parseCSVRow } from "@/lib/clientData";
+import { Client } from "@/lib/clientData";
+import { supabase } from "@/lib/supabase";
 
 export function useClients() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Carga inicial
   useEffect(() => {
-    const savedClients = localStorage.getItem("crm_clients");
-    if (savedClients) {
-      setClients(JSON.parse(savedClients));
-      setLoading(false);
-    } else {
-      fetch("/data/clients.csv")
-        .then((res) => res.text())
-        .then((csv) => {
-          const result = Papa.parse(csv, { header: true, skipEmptyLines: true });
-          const parsed = (result.data as Record<string, string>[]).map(parseCSVRow);
-          setClients(parsed);
-          localStorage.setItem("crm_clients", JSON.stringify(parsed));
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
-    }
+    const fetchClients = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('clients')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        
+        if (data) {
+          // Transform snake_case back to camelCase for the UI
+          const transformed: Client[] = data.map((row: any) => ({
+             id: row.id,
+             status: row.status || '',
+             firstName: row.first_name || '',
+             lastName: row.last_name || '',
+             email: row.email || '',
+             workPhone: row.work_phone || '',
+             dob: row.dob || '',
+             driversLicense: row.drivers_license || '',
+             dlState: row.dl_state || '',
+             address: row.address || '',
+             city: row.city || '',
+             zip: row.zip || '',
+             state: row.state || '',
+             referredBy: row.referred_by || '',
+             notes: row.notes || '',
+             products: row.products || [],
+             reminders: row.reminders || [],
+             logs: row.logs || []
+          }));
+          setClients(transformed);
+        }
+      } catch (err) {
+        console.error("Error fetching clients from Supabase:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchClients();
   }, []);
 
-  const syncToSheets = async (client: Client) => {
+  const addClients = async (newClients: Client[]) => {
+    // 1. Instantly update the UI
+    setClients((prev) => [...newClients, ...prev]);
+
+    // 2. Map back to snake_case for Supabase
+    const toInsert = newClients.map(c => ({
+      id: c.id,
+      status: c.status,
+      first_name: c.firstName,
+      last_name: c.lastName,
+      email: c.email,
+      work_phone: c.workPhone,
+      dob: c.dob,
+      drivers_license: c.driversLicense,
+      dl_state: c.dlState,
+      address: c.address,
+      city: c.city,
+      zip: c.zip,
+      state: c.state,
+      referred_by: c.referredBy,
+      notes: c.notes,
+      products: c.products,
+      reminders: c.reminders,
+      logs: c.logs
+    }));
+
     try {
-      // Usamos await para manejar mejor el flujo, aunque sea no-cors
-      await fetch("https://script.google.com/macros/s/AKfycbxIXwAdmqPgj6LpGfJPuNpYCb255SAlXQL1lvLfMHzg-2Qs3KERITfrhitbZRdGgCSaqg/exec", {
-        method: "POST",
-        mode: "no-cors", 
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(client),
-      });
-      console.log("Sincronizado con Sheets:", client.firstName);
-    } catch (error) {
-      console.error("Error sincronizando con Sheets:", error);
+      const { error } = await supabase.from('clients').insert(toInsert);
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error inserting clients to Supabase:", err);
     }
   };
 
-  const addClients = (newClients: Client[]) => {
-    setClients((prev) => {
-      const updated = [...newClients, ...prev];
-      localStorage.setItem("crm_clients", JSON.stringify(updated));
-      // Sincronizamos cada nuevo cliente individualmente
-      newClients.forEach(syncToSheets);
-      return updated;
-    });
-  };
-
-  const updateClient = (id: string, updatedClient: Partial<Client>) => {
-    setClients((prev) => {
-      let clientToSync: Client | null = null;
-      const updated = prev.map((c) => {
-        if (c.id === id) {
-          const newC = { ...c, ...updatedClient };
-          clientToSync = newC;
-          return newC;
-        }
-        return c;
-      });
-
-      if (clientToSync) {
-        localStorage.setItem("crm_clients", JSON.stringify(updated));
-        syncToSheets(clientToSync);
+  const updateClient = async (id: string, updatedClient: Partial<Client>) => {
+    // 1. Update UI
+    let fullUpdated: Record<string, any> = {};
+    setClients((prev) => prev.map(c => {
+      if (c.id === id) {
+        const newC = { ...c, ...updatedClient };
+        fullUpdated = newC;
+        return newC;
       }
-      return updated;
-    });
-  };
-  const deleteClient = (id: string) => {
-    setClients((prev) => {
-      const updated = prev.filter(c => c.id !== id);
-      localStorage.setItem("crm_clients", JSON.stringify(updated));
-      return updated;
-    });
+      return c;
+    }));
+
+    if (Object.keys(fullUpdated).length === 0) return;
+
+    // 2. Prepare payload for DB
+    const payload = {
+      status: fullUpdated.status,
+      first_name: fullUpdated.firstName,
+      last_name: fullUpdated.lastName,
+      email: fullUpdated.email,
+      work_phone: fullUpdated.workPhone,
+      dob: fullUpdated.dob,
+      drivers_license: fullUpdated.driversLicense,
+      dl_state: fullUpdated.dlState,
+      address: fullUpdated.address,
+      city: fullUpdated.city,
+      zip: fullUpdated.zip,
+      state: fullUpdated.state,
+      referred_by: fullUpdated.referredBy,
+      notes: fullUpdated.notes,
+      products: fullUpdated.products,
+      reminders: fullUpdated.reminders,
+      logs: fullUpdated.logs
+    };
+
+    try {
+      const { error } = await supabase.from('clients').update(payload).eq('id', id);
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error updating client in Supabase:", err);
+    }
   };
 
-  const deleteAllClients = () => {
+  const deleteClient = async (id: string) => {
+    // 1. Update UI
+    setClients((prev) => prev.filter(c => c.id !== id));
+
+    // 2. Delete from DB
+    try {
+      const { error } = await supabase.from('clients').delete().eq('id', id);
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error deleting client in Supabase:", err);
+    }
+  };
+
+  const deleteAllClients = async () => {
+    // 1. Update UI
     setClients([]);
-    localStorage.removeItem("crm_clients");
+
+    // 2. Delete all from DB
+    try {
+      const { error } = await supabase.from('clients').delete().neq('id', 'placeholder');
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error deleting all clients in Supabase:", err);
+    }
   };
 
   return { clients, loading, addClients, updateClient, deleteClient, deleteAllClients };
