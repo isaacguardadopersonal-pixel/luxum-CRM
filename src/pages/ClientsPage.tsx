@@ -7,7 +7,7 @@ import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, Phone, Mail,
 import * as XLSX from 'xlsx';
 
 export default function ClientsPage() {
-  const { clients, loading, addClients, updateClient, deleteClient } = useClients();
+  const { clients, loading, addClients, updateClient, deleteClient, deleteAllClients } = useClients();
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -259,6 +259,17 @@ export default function ClientsPage() {
           <p className="text-sm text-muted-foreground mt-1">{filtered.length} {t("clients.found")}</p>
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => {
+              if(window.confirm("¿Estás absolutamente seguro de que deseas BORRAR TODOS los clientes? Esta acción eliminará toda la base de datos local y no se puede deshacer.")) {
+                deleteAllClients();
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-lg text-sm font-medium hover:bg-destructive/20 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Borrar Todos
+          </button>
           <button 
             onClick={() => setShowImportModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground border border-border rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors"

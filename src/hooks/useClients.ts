@@ -77,5 +77,10 @@ export function useClients() {
     });
   };
 
-  return { clients, loading, addClients, updateClient, deleteClient };
+  const deleteAllClients = () => {
+    setClients([]);
+    localStorage.removeItem("crm_clients");
+  };
+
+  return { clients, loading, addClients, updateClient, deleteClient, deleteAllClients };
 }
