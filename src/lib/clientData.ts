@@ -54,25 +54,38 @@ export interface Client {
 }
 
 export function parseCSVRow(row: Record<string, string>): Client {
-  const premiumRaw = (row["Policy Premium"] || "").replace(/[$,"]/g, "").trim();
+  const lowerRow: Record<string, string> = {};
+  for (const [k, v] of Object.entries(row)) {
+    lowerRow[k.trim().toLowerCase()] = v;
+  }
+
+  const getV = (keys: string[]) => {
+    for (const k of keys) {
+      const val = lowerRow[k.toLowerCase()];
+      if (val !== undefined && val !== "") return val;
+    }
+    return "";
+  };
+
+  const premiumRaw = getV(["Policy Premium", "Premium"]).replace(/[$,"]/g, "").trim();
   const premium = premiumRaw ? parseFloat(premiumRaw) : 0;
 
   const products: Product[] = [];
-  const policyNumber = row["Policy Number"] || "";
-  const company = row["Company"] || "";
+  const policyNumber = getV(["Policy Number", "Poliza"]);
+  const company = getV(["Company", "Compañia", "Compania"]);
 
   if (policyNumber || company || premium > 0) {
     products.push({
       id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
-      category: row["Policy Type"] || "Auto",
-      firstName: row["First Name"] || "",
-      lastName: row["Last Name"] || "",
+      category: getV(["Policy Type", "Type", "Tipo"]) || "Auto",
+      firstName: getV(["First Name", "Nombre", "Nombres"]) || "",
+      lastName: getV(["Last Name", "Apellido", "Apellidos"]) || "",
       policyNumber: policyNumber,
       company: company,
       premium: premium,
-      licenseNumber: row["Drivers License #"] || "",
-      effectiveDate: row["Effective Date"] || "",
-      expirationDate: row["Expiration Date"] || "",
+      licenseNumber: getV(["Drivers License #", "License", "Drivers License", "Licencia"]) || "",
+      effectiveDate: getV(["Effective Date", "Efectividad", "Effective"]) || "",
+      expirationDate: getV(["Expiration Date", "Vencimiento", "Expiration"]) || "",
       drivers: [],
       createdAt: new Date().toISOString()
     });
@@ -80,23 +93,23 @@ export function parseCSVRow(row: Record<string, string>): Client {
 
   return {
     id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
-    status: row["Status"] || "",
-    firstName: row["First Name"] || "",
-    lastName: row["Last Name"] || "",
-    email: row["Email"] || "",
-    workPhone: row["Work Phone"] || "",
-    dob: row["DOB"] || "",
-    driversLicense: row["Drivers License #"] || "",
-    dlState: row["DL State"] || "",
-    address: row["Address"] || "",
-    city: row["City"] || "",
-    zip: row["Zip"] || "",
-    state: row["State"] || "",
-    referredBy: row["Referred By"] || "",
-    notes: row["Notes"] || "",
-    products: products, // Se asigna el array de productos creado arriba
-    reminders: [],      // Inicializado vacío para evitar errores en useClients
-    logs: []            // Inicializado vacío
+    status: getV(["Status", "Estado", "Estatus"]) || "",
+    firstName: getV(["First Name", "Nombre", "Nombres"]) || "",
+    lastName: getV(["Last Name", "Apellido", "Apellidos"]) || "",
+    email: getV(["Email", "Correo", "Mail"]) || "",
+    workPhone: getV(["Work Phone", "Phone", "Teléfono", "Telefono", "Contacto"]) || "",
+    dob: getV(["DOB", "Date of Birth", "Fecha de Nacimiento", "Nacimiento"]) || "",
+    driversLicense: getV(["Drivers License #", "Drivers License", "License", "Licencia"]) || "",
+    dlState: getV(["DL State", "Estado DL", "DL_State", "Estado de Licencia"]) || "",
+    address: getV(["Address", "Dirección", "Direccion", "Calle"]) || "",
+    city: getV(["City", "Ciudad", "Municipio"]) || "",
+    zip: getV(["Zip", "Zip Code", "Codigo Postal", "Postal"]) || "",
+    state: getV(["State", "Estado", "Provincia"]) || "",
+    referredBy: getV(["Referred By", "Referido Por", "Referido"]) || "",
+    notes: getV(["Notes", "Notas", "Comentarios"]) || "",
+    products: products,
+    reminders: [],
+    logs: []
   };
 }
 

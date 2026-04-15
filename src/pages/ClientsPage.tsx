@@ -84,7 +84,8 @@ export default function ClientsPage() {
       const ws = wb.Sheets[wsname];
       
       // defval: "" rellena celdas vacías y usa la primera fila como nombres de Llaves Obj
-      const data = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, any>[];
+      // raw: false asegura que las fechas (o números con formato) se conviertan a texto asumiendo el formato de Excel
+      const data = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }) as Record<string, any>[];
       
       const newClients: Client[] = data.map(rawRow => {
         const rowData: Record<string, string> = {};
