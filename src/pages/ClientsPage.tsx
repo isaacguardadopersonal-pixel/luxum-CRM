@@ -80,20 +80,25 @@ export default function ClientsPage() {
     reader.onload = (evt) => {
       const bstr = evt.target?.result;
       const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
       
-      // defval: "" rellena celdas vacías y usa la primera fila como nombres de Llaves Obj
-      // raw: false asegura que las fechas (o números con formato) se conviertan a texto asumiendo el formato de Excel
-      const data = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }) as Record<string, any>[];
+      const newClients: Client[] = [];
       
-      const newClients: Client[] = data.map(rawRow => {
-        const rowData: Record<string, string> = {};
-        for (const [key, value] of Object.entries(rawRow)) {
-           rowData[key.trim()] = String(value).trim();
-        }
-        return parseCSVRow(rowData);
-      });
+      for (const wsname of wb.SheetNames) {
+        const ws = wb.Sheets[wsname];
+        // defval: "" rellena celdas vacías y usa la primera fila como nombres de Llaves Obj
+        // raw: false asegura que las fechas (o números con formato) se conviertan a texto asumiendo el formato de Excel
+        const data = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }) as Record<string, any>[];
+        
+        const mappedSheet = data.map(rawRow => {
+          const rowData: Record<string, string> = {};
+          for (const [key, value] of Object.entries(rawRow)) {
+             rowData[key.trim()] = String(value).trim();
+          }
+          return parseCSVRow(rowData);
+        });
+        
+        newClients.push(...mappedSheet);
+      }
 
       if (newClients.length > 0) {
           addClients(newClients);
