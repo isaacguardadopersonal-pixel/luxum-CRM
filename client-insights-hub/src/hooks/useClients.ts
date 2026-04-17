@@ -1,66 +1,76 @@
 import { useState, useEffect } from "react";
 import Papa from "papaparse";
 import { Client, parseCSVRow } from "@/lib/clientData";
+import { supabase } from "@/integrations/supabase/client";
 
 export function useClients() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedClients = localStorage.getItem("crm_clients");
-    if (savedClients) {
-      setClients(JSON.parse(savedClients));
-      setLoading(false);
-    } else {
-      fetch("/data/clients.csv")
-        .then((res) => res.text())
-        .then((csv) => {
-          const result = Papa.parse(csv, { header: true, skipEmptyLines: true });
-          const parsed = (result.data as Record<string, string>[]).map(parseCSVRow);
-          setClients(parsed);
-          localStorage.setItem("crm_clients", JSON.stringify(parsed));
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
-    }
+    const fetchSupabaseClients = async () => {
+      try {
+        const { data, error } = await supabase.from("clients").select("*");
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          setClients(data as Client[]);
+          localStorage.setItem("crm_clients", JSON.stringify(data));
+        } else {
+          // Fallback a Storage o CSV local
+          const savedClients = localStorage.getItem("crm_clients");
+          if (savedClients) {
+            setClients(JSON.parse(savedClients));
+          } else {
+            // Si es primera vez, cargamos el csv por defecto y lo mandamos a Supabase
+            fetch("/data/clients.csv")
+              .then((res) => res.text())
+              .then(async (csv) => {
+                const result = Papa.parse(csv, { header: true, skipEmptyLines: true });
+                const parsed = (result.data as Record<string, string>[]).map(parseCSVRow);
+                setClients(parsed);
+                localStorage.setItem("crm_clients", JSON.stringify(parsed));
+                
+                // Cargar a Supabase de golpe
+                if (parsed.length > 0) {
+                  await supabase.from("clients").upsert(parsed);
+                }
+              })
+              .catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.error("Error cargando de Supabase:", err);
+        // Fallback local
+        const savedClients = localStorage.getItem("crm_clients");
+        if (savedClients) setClients(JSON.parse(savedClients));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSupabaseClients();
   }, []);
 
-  const syncBulkToSheets = async (clientsArray: Client[]) => {
+  const pullFromSupabase = async (): Promise<boolean> => {
     try {
-      await fetch("https://script.google.com/macros/s/AKfycbxNW_iqrbbUCqpKI-jgCv6PaUPCyxH36MEaFAMMHSoxKcFWuwrUe43H6XtT3AZKHEDebg/exec", {
-        method: "POST",
-        mode: "no-cors", 
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(clientsArray), 
-      });
-      console.log("Sincronización MASIVA con Sheets:", clientsArray.length, "clientes");
-    } catch (error) {
-      console.error("Error sincronizando (Bulk) con Sheets:", error);
-    }
-  };
-
-  const pullFromSheets = async (): Promise<boolean> => {
-    try {
-      // Usamos el fetch estándar (sin no-cors) para que siga el 302 y nos devuelva la data real con Permissive CORS de Google
-      const response = await fetch("https://script.google.com/macros/s/AKfycbxNW_iqrbbUCqpKI-jgCv6PaUPCyxH36MEaFAMMHSoxKcFWuwrUe43H6XtT3AZKHEDebg/exec");
-      if(!response.ok) throw new Error("Error en la descarga de datos.");
-      const downloadedClients: Client[] = await response.json();
+      const { data, error } = await supabase.from("clients").select("*");
+      if (error) throw error;
       
-      // Sanitizamos y estructuramos
-      if(Array.isArray(downloadedClients)) {
-        setClients(downloadedClients);
-        localStorage.setItem("crm_clients", JSON.stringify(downloadedClients));
-        console.log("Sincronización Inversa O.K. - Se recuperaron", downloadedClients.length, "clientes desde Sheets.");
+      if (data && Array.isArray(data)) {
+        setClients(data as Client[]);
+        localStorage.setItem("crm_clients", JSON.stringify(data));
+        console.log("Sincronización O.K. - Se recuperaron", data.length, "clientes desde Supabase.");
         return true;
       }
       return false;
     } catch (error) {
-      console.error("Fallo monumental al descargar de Google Sheets:", error);
+      console.error("Fallo al descargar de Supabase:", error);
       return false;
     }
   };
 
-  const addClients = (newClients: Client[]) => {
+  const addClients = async (newClients: Client[]) => {
     setClients((prev) => {
       const updated = [...newClients, ...prev];
       localStorage.setItem("crm_clients", JSON.stringify(updated));
@@ -68,19 +78,19 @@ export function useClients() {
     });
 
     if (newClients.length > 0) {
-      if (newClients.length === 1) {
-        // Un solo cliente, mandarlo directo
-        syncBulkToSheets([newClients[0]]);
-      } else {
-        // Enviar a Google de golpe en 1 sola petición súper-rápida (Bulk Insert Memoria Ram)
-        syncBulkToSheets(newClients);
+      try {
+        const { error } = await supabase.from("clients").upsert(newClients);
+        if (error) throw error;
+      } catch (error) {
+        console.error("Error sincronizando (Bulk) con Supabase:", error);
       }
     }
   };
 
-  const updateClient = (id: string, updatedClient: Partial<Client>) => {
+  const updateClient = async (id: string, updatedClient: Partial<Client>) => {
+    let clientToSync: Client | null = null;
+    
     setClients((prev) => {
-      let clientToSync: Client | null = null;
       const updated = prev.map((c) => {
         if (c.id === id) {
           const newC = { ...c, ...updatedClient };
@@ -92,22 +102,45 @@ export function useClients() {
 
       if (clientToSync) {
         localStorage.setItem("crm_clients", JSON.stringify(updated));
-        syncBulkToSheets([clientToSync]);
       }
       return updated;
     });
+
+    if (clientToSync) {
+      try {
+        const { error } = await supabase.from("clients").upsert(clientToSync);
+        if (error) throw error;
+      } catch (err) {
+        console.error("Error actualizando en Supabase:", err);
+      }
+    }
   };
-  const deleteClient = (id: string) => {
+
+  const deleteClient = async (id: string) => {
     setClients((prev) => {
       const updated = prev.filter(c => c.id !== id);
       localStorage.setItem("crm_clients", JSON.stringify(updated));
       return updated;
     });
-  };
-  const deleteAllClients = () => {
-    setClients([]);
-    localStorage.removeItem("crm_clients");
+
+    try {
+      const { error } = await supabase.from("clients").delete().eq("id", id);
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error eliminando de Supabase:", err);
+    }
   };
 
-  return { clients, loading, addClients, updateClient, deleteClient, pullFromSheets, deleteAllClients };
+  const deleteAllClients = async () => {
+    setClients([]);
+    localStorage.removeItem("crm_clients");
+    try {
+      const { error } = await supabase.from("clients").delete().neq("id", "none_existent");
+      if (error) throw error;
+    } catch (err) {
+      console.error("Error vaciando base de datos en Supabase", err);
+    }
+  };
+
+  return { clients, loading, addClients, updateClient, deleteClient, pullFromSupabase, deleteAllClients };
 }

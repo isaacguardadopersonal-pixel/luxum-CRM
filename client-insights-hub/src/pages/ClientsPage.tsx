@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import Papa from "papaparse";
 
 export default function ClientsPage() {
-  const { clients, loading, addClients, updateClient, deleteClient, pullFromSheets, deleteAllClients } = useClients();
+  const { clients, loading, addClients, updateClient, deleteClient, pullFromSupabase, deleteAllClients } = useClients();
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -239,11 +239,11 @@ export default function ClientsPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={async () => {
-              if(confirm("ATENCIÓN: Esto descargará la base de datos de Google Sheets y SOBREESCRIBIRÁ el CRM actual con su estado exacto. ¿Continuar?")) {
+              if(confirm("ATENCIÓN: Esto descargará la base de datos completa de Supabase y SOBREESCRIBIRÁ el CRM actual localmente con su estado exacto. ¿Continuar?")) {
                 setIsSyncing(true);
-                const success = await pullFromSheets();
+                const success = await pullFromSupabase();
                 setIsSyncing(false);
-                if(success) alert("¡Sincronización Bidireccional Exitosa! Has descargado la última versión de la nube.");
+                if(success) alert("¡Sincronización Exitosa! Has descargado la última versión de la base de datos.");
               }
             }}
             disabled={isSyncing}
@@ -254,7 +254,7 @@ export default function ClientsPage() {
             ) : (
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
             )}
-            {"Sincronizar Nube"}
+            {"Sincronizar Cloud"}
           </button>
           <button 
             onClick={() => {
