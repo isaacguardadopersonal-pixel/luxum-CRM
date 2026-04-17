@@ -3,7 +3,7 @@ import { CRMLayout } from "@/components/CRMLayout";
 import { StatCard } from "@/components/StatCard";
 import { useClients } from "@/hooks/useClients";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getStatusColor } from "@/lib/clientData";
+import { getStatusColor, Client, Product } from "@/lib/clientData";
 import { Search, Users, DollarSign, FileText, UserPlus, Bell, Gift, Calendar } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -23,7 +23,7 @@ export default function Dashboard() {
   const { clients, loading } = useClients();
   const { t, locale, setLocale } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedClient, setSelectedClient] = useState<any | null>(null);
+  const [selectedClient, setSelectedClient] = useState<{ client: Client; product: Product } | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -34,14 +34,14 @@ export default function Dashboard() {
     const filterYear = parseInt(filterYearStr, 10);
     const filterMonth = parseInt(filterMonthStr, 10) - 1; // 0-indexed
 
-    const isProductEffectiveInMonth = (p: any) => {
+    const isProductEffectiveInMonth = (p: Product) => {
       if (!p.effectiveDate) return false;
       const dateObj = new Date(p.effectiveDate);
       if (isNaN(dateObj.getTime())) return false;
       return dateObj.getMonth() === filterMonth && dateObj.getFullYear() === filterYear;
     };
 
-    const isProductExpiringInMonth = (p: any) => {
+    const isProductExpiringInMonth = (p: Product) => {
       if (!p.expirationDate) return false;
       const dateObj = new Date(p.expirationDate);
       if (isNaN(dateObj.getTime())) return false;
@@ -82,7 +82,7 @@ export default function Dashboard() {
       .sort((a, b) => b.value - a.value);
 
     // Expiring in selected month
-    const expiringSoon: { client: any; product: any }[] = [];
+    const expiringSoon: { client: Client; product: Product }[] = [];
     current.forEach((c) => {
       (c.products || []).forEach(p => {
         if (isProductExpiringInMonth(p)) {

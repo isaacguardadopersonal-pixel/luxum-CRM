@@ -87,7 +87,7 @@ export default function ClientsPage() {
         const ws = wb.Sheets[wsname];
         // defval: "" rellena celdas vacías y usa la primera fila como nombres de Llaves Obj
         // raw: false asegura que las fechas (o números con formato) se conviertan a texto asumiendo el formato de Excel
-        const data = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }) as Record<string, any>[];
+        const data = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }) as Record<string, unknown>[];
         
         const mappedSheet = data.map(rawRow => {
           const rowData: Record<string, string> = {};
@@ -117,7 +117,7 @@ export default function ClientsPage() {
     // Papa.parse interceptará comas o tabuladores dinámicamente y emparejará la primera fila a llaves de Obj.
     const result = Papa.parse(importText.trim(), { header: true, skipEmptyLines: true });
     
-    const newClients: Client[] = (result.data as Record<string, any>[]).map(rawRow => {
+    const newClients: Client[] = (result.data as Record<string, unknown>[]).map(rawRow => {
       const rowData: Record<string, string> = {};
       for (const [key, value] of Object.entries(rawRow)) {
          rowData[key.trim()] = String(value).trim();

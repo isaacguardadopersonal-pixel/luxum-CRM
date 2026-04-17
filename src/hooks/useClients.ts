@@ -19,6 +19,7 @@ export function useClients() {
         
         if (data) {
           // Transform snake_case back to camelCase for the UI
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const transformed: Client[] = data.map((row: any) => ({
              id: row.id,
              status: row.status || '',
@@ -87,6 +88,7 @@ export function useClients() {
 
   const updateClient = async (id: string, updatedClient: Partial<Client>) => {
     // 1. Update UI
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let fullUpdated: Record<string, any> = {};
     setClients((prev) => prev.map(c => {
       if (c.id === id) {
