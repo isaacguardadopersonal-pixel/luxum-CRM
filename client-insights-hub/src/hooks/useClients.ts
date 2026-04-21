@@ -33,7 +33,7 @@ export function useClients() {
                 
                 // Cargar a Supabase de golpe
                 if (parsed.length > 0) {
-                  await supabase.from("clients").upsert(parsed);
+                  await supabase.from("clients").upsert(parsed as any);
                 }
               })
               .catch(() => {});
@@ -79,7 +79,7 @@ export function useClients() {
 
     if (newClients.length > 0) {
       try {
-        const { error } = await supabase.from("clients").upsert(newClients);
+        const { error } = await supabase.from("clients").upsert(newClients as any);
         if (error) throw error;
       } catch (error) {
         console.error("Error sincronizando (Bulk) con Supabase:", error);
@@ -108,7 +108,7 @@ export function useClients() {
 
     if (clientToSync) {
       try {
-        const { error } = await supabase.from("clients").upsert(clientToSync);
+        const { error } = await supabase.from("clients").upsert(clientToSync as any);
         if (error) throw error;
       } catch (err) {
         console.error("Error actualizando en Supabase:", err);
