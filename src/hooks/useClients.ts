@@ -12,8 +12,7 @@ export function useClients() {
       try {
         const { data, error } = await supabase
           .from('clients')
-          .select('*')
-          .order('created_at', { ascending: false });
+          .select('*');
 
         if (error) throw error;
         
