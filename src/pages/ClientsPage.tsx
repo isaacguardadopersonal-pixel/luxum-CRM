@@ -1177,8 +1177,12 @@ export default function ClientsPage() {
                     }
                     setShowProductModal(false);
                   } else if (detail) {
-                    const updatedProducts = [...(detail.products || []), newProduct];
-                    updateClient(detail.id, { products: updatedProducts });
+                    const existingProducts = detail.products || [];
+                    if (productForm.id) {
+                      updateClient(detail.id, { products: existingProducts.map(p => p.id === productForm.id ? newProduct : p) });
+                    } else {
+                      updateClient(detail.id, { products: [...existingProducts, newProduct] });
+                    }
                     setShowProductModal(false);
                   }
                 }}
