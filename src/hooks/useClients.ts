@@ -102,27 +102,23 @@ export function useClients() {
         const { error: prodErr } = await supabase.from('products').upsert(toInsertProducts);
         if (prodErr) throw prodErr;
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error upserting clients or products to Supabase:", err);
+      alert("Error al guardar en Supabase: " + (err.message || JSON.stringify(err)));
     }
   };
 
   const updateClient = async (id: string, updatedClient: Partial<Client>) => {
-    // 1. Update UI
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let fullUpdated: Record<string, any> = {};
-    setClients((prev) => prev.map(c => {
-      if (c.id === id) {
-        const newC = { ...c, ...updatedClient };
-        fullUpdated = newC;
-        return newC;
-      }
-      return c;
-    }));
+    // 1. Find the client and compute the updated version synchronously
+    const existingClient = clients.find(c => c.id === id);
+    if (!existingClient) return;
+    
+    const fullUpdated = { ...existingClient, ...updatedClient };
 
-    if (Object.keys(fullUpdated).length === 0) return;
+    // 2. Update UI instantly
+    setClients((prev) => prev.map(c => c.id === id ? fullUpdated : c));
 
-    // 2. Prepare payload for DB
+    // 3. Prepare payload for DB
     const payloadClient = {
       id,
       status: fullUpdated.status,
@@ -168,8 +164,9 @@ export function useClients() {
          const { error: prodErr } = await supabase.from('products').upsert(payloadProducts);
          if (prodErr) throw prodErr;
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error updating client or products in Supabase:", err);
+      alert("Error al actualizar en Supabase: " + (err.message || JSON.stringify(err)));
     }
   };
 

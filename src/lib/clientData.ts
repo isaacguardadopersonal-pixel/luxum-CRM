@@ -87,9 +87,14 @@ export function parseCSVRow(row: Record<string, string>): Client {
   const uniqueId = generateClientId(firstName, lastName, workPhone, email);
 
   if (policyNumber || company || premium > 0) {
+    const prodCategory = getV(["Policy Type", "Type", "Tipo"]) || "Auto";
+    // Generar ID de producto determinista basado en el ID del cliente, póliza y compañía
+    const productBase = `${uniqueId}_${policyNumber || ''}_${company || ''}_${prodCategory}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const productId = productBase || Math.random().toString(36).substring(2, 15);
+
     products.push({
-      id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
-      category: getV(["Policy Type", "Type", "Tipo"]) || "Auto",
+      id: productId,
+      category: prodCategory,
       firstName: firstName,
       lastName: lastName,
       policyNumber: policyNumber,
