@@ -12,7 +12,7 @@ export function useClients() {
       try {
         const { data, error } = await supabase
           .from('clients')
-          .select('*');
+          .select('*, products(*)');
 
         if (error) throw error;
         
@@ -55,7 +55,7 @@ export function useClients() {
     // 1. Instantly update the UI
     setClients((prev) => [...newClients, ...prev]);
 
-    const toInsert = newClients.map(c => ({
+    const toInsertClients = newClients.map(c => ({
       id: c.id,
       status: c.status,
       firstName: c.firstName,
@@ -71,16 +71,39 @@ export function useClients() {
       state: c.state,
       referredBy: c.referredBy,
       notes: c.notes,
-      products: c.products,
+      products: c.products, // Lo dejamos temporalmente en JSONB local para compatibilidad, pero también lo grabamos separado
       reminders: c.reminders,
       logs: c.logs
     }));
 
+    const toInsertProducts = newClients.flatMap(c => 
+      (c.products || []).map(p => ({
+         id: p.id,
+         client_id: c.id,
+         category: p.category,
+         firstName: p.firstName,
+         lastName: p.lastName,
+         policyNumber: p.policyNumber,
+         company: p.company,
+         premium: p.premium,
+         licenseNumber: p.licenseNumber,
+         effectiveDate: p.effectiveDate,
+         expirationDate: p.expirationDate,
+         drivers: p.drivers,
+         createdAt: p.createdAt
+      }))
+    );
+
     try {
-      const { error } = await supabase.from('clients').insert(toInsert);
-      if (error) throw error;
+      const { error: clientErr } = await supabase.from('clients').upsert(toInsertClients);
+      if (clientErr) throw clientErr;
+      
+      if (toInsertProducts.length > 0) {
+        const { error: prodErr } = await supabase.from('products').upsert(toInsertProducts);
+        if (prodErr) throw prodErr;
+      }
     } catch (err) {
-      console.error("Error inserting clients to Supabase:", err);
+      console.error("Error upserting clients or products to Supabase:", err);
     }
   };
 
@@ -100,7 +123,8 @@ export function useClients() {
     if (Object.keys(fullUpdated).length === 0) return;
 
     // 2. Prepare payload for DB
-    const payload = {
+    const payloadClient = {
+      id,
       status: fullUpdated.status,
       firstName: fullUpdated.firstName,
       lastName: fullUpdated.lastName,
@@ -119,12 +143,33 @@ export function useClients() {
       reminders: fullUpdated.reminders,
       logs: fullUpdated.logs
     };
+    
+    const payloadProducts = (fullUpdated.products || []).map((p: any) => ({
+         id: p.id,
+         client_id: id,
+         category: p.category,
+         firstName: p.firstName,
+         lastName: p.lastName,
+         policyNumber: p.policyNumber,
+         company: p.company,
+         premium: p.premium,
+         licenseNumber: p.licenseNumber,
+         effectiveDate: p.effectiveDate,
+         expirationDate: p.expirationDate,
+         drivers: p.drivers,
+         createdAt: p.createdAt
+    }));
 
     try {
-      const { error } = await supabase.from('clients').update(payload).eq('id', id);
-      if (error) throw error;
+      const { error: clientErr } = await supabase.from('clients').upsert(payloadClient);
+      if (clientErr) throw clientErr;
+      
+      if (payloadProducts.length > 0) {
+         const { error: prodErr } = await supabase.from('products').upsert(payloadProducts);
+         if (prodErr) throw prodErr;
+      }
     } catch (err) {
-      console.error("Error updating client in Supabase:", err);
+      console.error("Error updating client or products in Supabase:", err);
     }
   };
 

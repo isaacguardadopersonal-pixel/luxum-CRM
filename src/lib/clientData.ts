@@ -53,6 +53,11 @@ export interface Client {
   logs: ChangeLog[]; // Quitamos el '?' para consistencia
 }
 
+export function generateClientId(first: string, last: string, phone: string, email: string): string {
+  const base = `${first || ''}_${last || ''}_${phone || ''}_${email || ''}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return base || Math.random().toString(36).substring(2, 15);
+}
+
 export function parseCSVRow(row: Record<string, string>): Client {
   const lowerRow: Record<string, string> = {};
   for (const [k, v] of Object.entries(row)) {
@@ -74,12 +79,19 @@ export function parseCSVRow(row: Record<string, string>): Client {
   const policyNumber = getV(["Policy Number", "Poliza"]);
   const company = getV(["Company", "Compañia", "Compania"]);
 
+  const firstName = getV(["First Name", "Nombre", "Nombres"]) || "";
+  const lastName = getV(["Last Name", "Apellido", "Apellidos"]) || "";
+  const workPhone = getV(["Work Phone", "Phone", "Teléfono", "Telefono", "Contacto"]) || "";
+  const email = getV(["Email", "Correo", "Mail"]) || "";
+
+  const uniqueId = generateClientId(firstName, lastName, workPhone, email);
+
   if (policyNumber || company || premium > 0) {
     products.push({
       id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
       category: getV(["Policy Type", "Type", "Tipo"]) || "Auto",
-      firstName: getV(["First Name", "Nombre", "Nombres"]) || "",
-      lastName: getV(["Last Name", "Apellido", "Apellidos"]) || "",
+      firstName: firstName,
+      lastName: lastName,
       policyNumber: policyNumber,
       company: company,
       premium: premium,
@@ -92,12 +104,12 @@ export function parseCSVRow(row: Record<string, string>): Client {
   }
 
   return {
-    id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
+    id: uniqueId,
     status: getV(["Status", "Estado", "Estatus"]) || "",
-    firstName: getV(["First Name", "Nombre", "Nombres"]) || "",
-    lastName: getV(["Last Name", "Apellido", "Apellidos"]) || "",
-    email: getV(["Email", "Correo", "Mail"]) || "",
-    workPhone: getV(["Work Phone", "Phone", "Teléfono", "Telefono", "Contacto"]) || "",
+    firstName: firstName,
+    lastName: lastName,
+    email: email,
+    workPhone: workPhone,
     dob: getV(["DOB", "Date of Birth", "Fecha de Nacimiento", "Nacimiento"]) || "",
     driversLicense: getV(["Drivers License #", "Drivers License", "License", "Licencia"]) || "",
     dlState: getV(["DL State", "Estado DL", "DL_State", "Estado de Licencia"]) || "",

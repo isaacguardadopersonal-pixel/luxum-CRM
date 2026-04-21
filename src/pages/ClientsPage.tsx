@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { CRMLayout } from "@/components/CRMLayout";
 import { useClients } from "@/hooks/useClients";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getStatusColor, Client, Product, ChangeLog, parseCSVRow } from "@/lib/clientData";
+import { getStatusColor, Client, Product, ChangeLog, parseCSVRow, generateClientId } from "@/lib/clientData";
 import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, Phone, Mail, Eye, Upload, Edit, Trash2 } from "lucide-react";
 import * as XLSX from 'xlsx';
 import Papa from "papaparse";
@@ -54,13 +54,13 @@ export default function ClientsPage() {
   };
   const getAllowedCompanies = (category: string) => {
     switch (category) {
-      case "Auto": return ["Progressive", "National General", "Gainsco", "Geico"];
+      case "Auto": return ["State Farm", "Progressive", "National General", "Gainsco", "Geico"];
       case "Home":
-      case "Rent": return ["National General", "Progressive"];
-      case "Commercial auto": return ["Progressive", "National General", "Geico"];
+      case "Rent": return ["State Farm", "National General", "Progressive"];
+      case "Commercial auto": return ["State Farm", "Progressive", "National General", "Geico"];
       case "Comercial": return ["Next Ergo"];
       case "Life": return ["National Life Group"];
-      default: return ["National General", "Progressive", "Gainsco", "Geico", "National Life Group", "Next Ergo"];
+      default: return ["State Farm", "National General", "Progressive", "Gainsco", "Geico", "National Life Group", "Next Ergo"];
     }
   };
   const [addForm, setAddForm] = useState<Partial<Client>>({ status: "Quoting" });
@@ -158,8 +158,10 @@ export default function ClientsPage() {
       });
     }
 
+    const uniqueId = generateClientId(addForm.firstName || "", addForm.lastName || "", addForm.workPhone || "", addForm.email || "");
+
     const newClient: Client = {
-      id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
+      id: uniqueId,
       status: addForm.status || "Quoting",
       firstName: addForm.firstName || "",
       lastName: addForm.lastName || "",
@@ -174,7 +176,9 @@ export default function ClientsPage() {
       state: addForm.state || "",
       referredBy: addForm.referredBy || "",
       notes: addForm.notes || "",
-      products: createdProducts
+      products: createdProducts,
+      reminders: [],
+      logs: []
     };
     
     addClients([newClient]);
