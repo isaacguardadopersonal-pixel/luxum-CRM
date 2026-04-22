@@ -34,5 +34,6 @@ CREATE TRIGGER on_auth_user_created
 -- 2. Da click en "Add User" -> "Create New User".
 -- 3. Pon el correo del usuario (la contraseña autogenerada o ponles una temporal; igual van a iniciar con código a su correo).
 -- 4. El trigger se ejecutará y el usuario tendrá rol de 'vendedor'.
--- 5. Si quieres hacerlo 'admin', ve al "SQL Editor" y corre: 
+-- 5. Si quieres hacerlo '
+', ve al "SQL Editor" y corre: 
 --    UPDATE public.user_roles SET role = 'admin' WHERE user_id = 'AQUÍ_EL_ID_DEL_USUARIO';
