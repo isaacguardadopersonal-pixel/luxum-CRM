@@ -4,7 +4,8 @@ import { StatCard } from "@/components/StatCard";
 import { useClients } from "@/hooks/useClients";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getStatusColor, type Client, type Product, type Reminder } from "@/lib/clientData";
-import { Search, Users, DollarSign, FileText, UserPlus, Bell, Gift, Calendar } from "lucide-react";
+import { Search, Users, DollarSign, FileText, UserPlus, Bell, Gift, Calendar, LogOut } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -26,6 +27,7 @@ type SelectedClientType =
 export default function Dashboard() {
   const { clients, loading } = useClients();
   const { t, locale, setLocale } = useLanguage();
+  const { username, signOut } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedClient, setSelectedClient] = useState<SelectedClientType | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
@@ -174,7 +176,9 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("dashboard.welcome")}</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            {t("dashboard.welcome").replace('👋', '')} {username ? <span className="text-primary">{username}</span> : ''} 👋
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {t("dashboard.subtitle")}
           </p>
@@ -212,6 +216,13 @@ export default function Dashboard() {
                 {stats.expiringSoon.length}
               </span>
             )}
+          </button>
+          <button 
+            onClick={signOut} 
+            title={t("sidebar.logout")}
+            className="p-2.5 rounded-lg bg-secondary text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <LogOut className="w-5 h-5" />
           </button>
         </div>
       </div>

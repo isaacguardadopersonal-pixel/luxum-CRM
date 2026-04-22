@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface CRMSidebarProps {
   activePage: string;
@@ -18,6 +19,7 @@ interface CRMSidebarProps {
 export function CRMSidebar({ activePage }: CRMSidebarProps) {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { signOut, role, username } = useAuth();
 
   const navItems = [
     { id: "dashboard", icon: LayoutDashboard, label: t("sidebar.dashboard"), path: "/" },
@@ -51,9 +53,19 @@ export function CRMSidebar({ activePage }: CRMSidebarProps) {
       </nav>
 
       {/* Bottom */}
-      <button className="sidebar-icon" title={t("sidebar.logout")}>
-        <LogOut className="w-5 h-5" />
-      </button>
+      <div className="flex flex-col items-center gap-4">
+        {username && (
+          <div 
+            className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase cursor-default border border-primary/20"
+            title={`Usuario: ${username}`}
+          >
+            {username.slice(0, 2)}
+          </div>
+        )}
+        <button className="sidebar-icon" title={t("sidebar.logout")} onClick={signOut}>
+          <LogOut className="w-5 h-5" />
+        </button>
+      </div>
     </aside>
   );
 }
