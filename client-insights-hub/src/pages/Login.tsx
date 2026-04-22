@@ -33,6 +33,7 @@ export default function Login() {
       let targetEmail = loginInput.trim();
 
       if (!targetEmail.includes('@')) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase.rpc as any)('get_email_by_username', { p_username: targetEmail });
         if (error || !data) {
           toast.error("No se encontró ningún correo vinculado a este usuario.");

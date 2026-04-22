@@ -87,8 +87,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setRole(null);
         setUsername(null);
       } else if (data) {
-        setRole((data as any).role as Role);
-        setUsername((data as any).username as string | null);
+        const userData = data as { role: Role; username: string | null };
+        setRole(userData.role);
+        setUsername(userData.username);
       }
     } catch (err) {
       console.error(err);

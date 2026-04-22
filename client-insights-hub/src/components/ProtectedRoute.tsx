@@ -26,7 +26,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (allowedRoles && role && !allowedRoles.includes(role as any)) {
+  if (allowedRoles && role && !allowedRoles.includes(role as "admin" | "vendedor")) {
     // If the route has specific roles and user doesn't match
     // we just bounce them to dashboard
     return <Navigate to="/" replace />;

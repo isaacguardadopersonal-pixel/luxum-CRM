@@ -33,6 +33,7 @@ export function useClients() {
                 
                 // Cargar a Supabase de golpe
                 if (parsed.length > 0) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   await supabase.from("clients").upsert(parsed as any);
                 }
               })
@@ -79,6 +80,7 @@ export function useClients() {
 
     if (newClients.length > 0) {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await supabase.from("clients").upsert(newClients as any);
         if (error) throw error;
       } catch (error) {
@@ -108,6 +110,7 @@ export function useClients() {
 
     if (clientToSync) {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await supabase.from("clients").upsert(clientToSync as any);
         if (error) throw error;
       } catch (err) {
