@@ -4,7 +4,7 @@ import { StatCard } from "@/components/StatCard";
 import { useClients } from "@/hooks/useClients";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getStatusColor, type Client, type Product, type Reminder } from "@/lib/clientData";
-import { Search, Users, DollarSign, FileText, UserPlus, Bell, Gift, Calendar, LogOut } from "lucide-react";
+import { Search, Users, DollarSign, FileText, UserPlus, Bell, Gift, Calendar, LogOut, BookOpen, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -36,11 +36,18 @@ export default function Dashboard() {
   });
 
   const stats = useMemo(() => {
-    const [filterYearStr, filterMonthStr] = selectedMonth.split('-');
-    const filterYear = parseInt(filterYearStr, 10);
-    const filterMonth = parseInt(filterMonthStr, 10) - 1; // 0-indexed
+    const isAll = selectedMonth === 'all';
+    let filterYear = 0;
+    let filterMonth = 0;
+    
+    if (!isAll) {
+      const [filterYearStr, filterMonthStr] = selectedMonth.split('-');
+      filterYear = parseInt(filterYearStr, 10);
+      filterMonth = parseInt(filterMonthStr, 10) - 1; // 0-indexed
+    }
 
     const isProductEffectiveInMonth = (p: Product) => {
+      if (isAll) return true;
       if (!p.effectiveDate) return false;
       const dateObj = new Date(p.effectiveDate);
       if (isNaN(dateObj.getTime())) return false;
@@ -48,6 +55,7 @@ export default function Dashboard() {
     };
 
     const isProductExpiringInMonth = (p: Product) => {
+      if (isAll) return true;
       if (!p.expirationDate) return false;
       const dateObj = new Date(p.expirationDate);
       if (isNaN(dateObj.getTime())) return false;
@@ -55,6 +63,7 @@ export default function Dashboard() {
     };
 
     const isReminderInMonth = (r: Reminder) => {
+      if (isAll) return true;
       if (!r.date) return false;
       const dateObj = new Date(r.date);
       if (isNaN(dateObj.getTime())) return false;
@@ -66,15 +75,17 @@ export default function Dashboard() {
     const notInterested = clients.filter((c) => c.status === "Not Interested");
     
     // Filter products based on selected month
-    const monthProductsInCurrent = current.flatMap(c => c.products || []).filter(isProductEffectiveInMonth);
-    const monthProductsInAll = clients.flatMap(c => c.products || []).filter(isProductEffectiveInMonth);
+    const validProductsInCurrent = current.flatMap(c => c.products || [])
+      .filter(p => isProductEffectiveInMonth(p) && p.tipo_movimiento !== 'Reemplazo' && p.status !== 'Cancelada por Reemplazo');
+    const validProductsInAll = clients.flatMap(c => c.products || [])
+      .filter(p => isProductEffectiveInMonth(p) && p.tipo_movimiento !== 'Reemplazo' && p.status !== 'Cancelada por Reemplazo');
 
-    const totalPremium = monthProductsInCurrent.reduce((sum, p) => sum + (p.premium || 0), 0);
-    const uniquePolicies = new Set(monthProductsInCurrent.map((p) => p.policyNumber).filter(Boolean)).size;
+    const totalPremium = validProductsInCurrent.reduce((sum, p) => sum + (p.premium || 0), 0);
+    const uniquePolicies = new Set(validProductsInCurrent.map((p) => p.policyNumber).filter(Boolean)).size;
 
     // By company
     const byCompany: Record<string, number> = {};
-    monthProductsInCurrent.forEach((p) => {
+    validProductsInCurrent.forEach((p) => {
       if (p.company) {
         byCompany[p.company] = (byCompany[p.company] || 0) + (p.premium || 0);
       }
@@ -85,7 +96,7 @@ export default function Dashboard() {
 
     // By policy type
     const byType: Record<string, number> = {};
-    monthProductsInAll.forEach((p) => {
+    validProductsInAll.forEach((p) => {
       if (p.category) {
         byType[p.category] = (byType[p.category] || 0) + 1;
       }
@@ -132,7 +143,7 @@ export default function Dashboard() {
 
     const premiumByType: Record<string, number> = {};
 
-    monthProductsInCurrent.forEach((p) => {
+    validProductsInCurrent.forEach((p) => {
       if (p.category && p.premium) {
         if (premiumByType[p.category] !== undefined) {
           premiumByType[p.category] += p.premium;
@@ -145,6 +156,10 @@ export default function Dashboard() {
     // Active clients this month
     const activeClientsThisMonth = current.filter(c => (c.products || []).some(isProductEffectiveInMonth)).length;
 
+    // Reemplazos this month
+    const reemplazosCount = clients.flatMap(c => c.products || [])
+      .filter(p => isProductEffectiveInMonth(p) && p.tipo_movimiento === 'Reemplazo').length;
+
     return {
       totalClients: clients.length,
       currentCustomers: activeClientsThisMonth,
@@ -152,6 +167,7 @@ export default function Dashboard() {
       notInterested: notInterested.length,
       totalPremium,
       uniquePolicies,
+      reemplazosCount,
       companyData,
       typeData,
       expiringSoon,
@@ -184,14 +200,31 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
+          <div className="flex items-center bg-secondary rounded-lg border border-border pr-1">
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="month"
+                value={selectedMonth === 'all' ? '' : selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="pl-9 pr-3 py-2 bg-transparent text-sm text-foreground focus:outline-none"
+              />
+            </div>
+            <div className="w-px h-5 bg-border mx-1"></div>
+            <button
+              onClick={() => {
+                if (selectedMonth === 'all') {
+                  const now = new Date();
+                  setSelectedMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+                } else {
+                  setSelectedMonth('all');
+                }
+              }}
+              className={`p-2 rounded-md transition-colors ${selectedMonth === 'all' ? 'bg-primary/20 text-primary' : 'hover:bg-background/50 text-muted-foreground hover:text-primary'}`}
+              title={selectedMonth === 'all' ? "Volver al mes actual" : "Ver todos los meses (Global)"}
+            >
+              <BookOpen className="w-4 h-4" />
+            </button>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -228,7 +261,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <StatCard
           title={t("dashboard.premium_total")}
           value={`$${stats.totalPremium.toLocaleString("en-US", { minimumFractionDigits: 0 })}`}
@@ -247,6 +280,12 @@ export default function Dashboard() {
           value={stats.uniquePolicies}
           icon={<FileText className="w-5 h-5" />}
           subtitle={t("dashboard.desc_policies")}
+        />
+        <StatCard
+          title="Reemplazos"
+          value={stats.reemplazosCount}
+          icon={<RefreshCw className="w-5 h-5" />}
+          subtitle="Pólizas sustituidas"
         />
         <StatCard
           title={t("dashboard.expiring")}
@@ -476,6 +515,8 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+
 
     </CRMLayout>
   );

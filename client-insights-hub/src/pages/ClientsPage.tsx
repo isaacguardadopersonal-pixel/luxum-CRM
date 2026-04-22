@@ -2,13 +2,15 @@ import { useMemo, useState } from "react";
 import { CRMLayout } from "@/components/CRMLayout";
 import { useClients } from "@/hooks/useClients";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { getStatusColor, Client, Product, ChangeLog, Reminder, parseCSVRow } from "@/lib/clientData";
-import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, Phone, Mail, Eye, Upload, Edit, Trash2 } from "lucide-react";
+import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, Phone, Mail, Eye, Upload, Edit, Trash2, RefreshCw } from "lucide-react";
 import * as XLSX from 'xlsx';
 import Papa from "papaparse";
 
 export default function ClientsPage() {
   const { clients, loading, addClients, updateClient, deleteClient, pullFromSupabase, deleteAllClients } = useClients();
+  const { role } = useAuth();
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -57,13 +59,13 @@ export default function ClientsPage() {
   };
   const getAllowedCompanies = (category: string) => {
     switch (category) {
-      case "Auto": return ["Progressive", "National General", "Gainsco", "Geico"];
+      case "Auto": return ["Progressive", "National General", "Gainsco", "Geico", "State Farm"];
       case "Home":
-      case "Rent": return ["National General", "Progressive"];
-      case "Commercial auto": return ["Progressive", "National General", "Geico"];
-      case "Comercial": return ["Next Ergo"];
+      case "Rent": return ["National General", "Progressive", "State Farm"];
+      case "Commercial auto": return ["Progressive", "National General", "Geico", "State Farm"];
+      case "Comercial": return ["Next Ergo", "State Farm"];
       case "Life": return ["National Life Group"];
-      default: return ["National General", "Progressive", "Gainsco", "Geico", "National Life Group", "Next Ergo"];
+      default: return ["National General", "Progressive", "Gainsco", "Geico", "National Life Group", "Next Ergo", "State Farm"];
     }
   };
   const [addForm, setAddForm] = useState<Partial<Client>>({ status: "Quoting" });
@@ -237,25 +239,6 @@ export default function ClientsPage() {
           <p className="text-sm text-muted-foreground mt-1">{filtered.length} {t("clients.found")}</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={async () => {
-              if(confirm("ATENCIÓN: Esto descargará la base de datos completa de Supabase y SOBREESCRIBIRÁ el CRM actual localmente con su estado exacto. ¿Continuar?")) {
-                setIsSyncing(true);
-                const success = await pullFromSupabase();
-                setIsSyncing(false);
-                if(success) alert("¡Sincronización Exitosa! Has descargado la última versión de la base de datos.");
-              }
-            }}
-            disabled={isSyncing}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600/10 text-indigo-400 border border-indigo-600/30 rounded-lg text-sm font-medium hover:bg-indigo-600/20 transition-colors"
-          >
-            {isSyncing ? (
-              <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
-            )}
-            {"Sincronizar Cloud"}
-          </button>
           <button 
             onClick={() => {
               if(window.confirm("¿Estás absolutamente seguro de que deseas BORRAR TODOS los clientes? Esta acción eliminará toda la base de datos local y no se puede deshacer.")) {
@@ -528,10 +511,62 @@ export default function ClientsPage() {
                 {detail.products && detail.products.length > 0 ? (
                   <div className="space-y-3 mb-3">
                     {detail.products.map(prod => (
-                      <div key={prod.id} className="p-3 bg-secondary/50 rounded-lg border border-border">
+                      <div key={prod.id} className={`p-3 rounded-lg border border-border ${prod.status === 'Cancelada por Reemplazo' ? 'bg-secondary/30 opacity-75' : 'bg-secondary/50'}`}>
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-sm font-semibold text-foreground">{prod.category}</span>
-                          <span className="text-xs text-muted-foreground">{prod.company}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-foreground">{prod.category}</span>
+                            {prod.status === 'Cancelada por Reemplazo' && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-medium bg-destructive/15 text-destructive rounded-sm">Cancelada</span>
+                            )}
+                          </div>
+                          <div className="flex gap-1 items-center">
+                            <span className="text-xs text-muted-foreground mr-1">{prod.company}</span>
+                            {role === "admin" && (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (window.confirm("¿Estás seguro de que deseas eliminar este producto? Esta acción no se puede deshacer.")) {
+                                    const updatedProducts = detail.products?.filter(p => p.id !== prod.id) || [];
+                                    updateClient(detail.id, { products: updatedProducts });
+                                  }
+                                }}
+                                className="p-1.5 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                                title="Eliminar Producto"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setProductForm(prod);
+                                setShowProductModal(true);
+                              }}
+                              className="p-1.5 text-primary hover:bg-primary/10 rounded-md transition-colors"
+                              title="Editar Producto"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            {(!prod.status || prod.status === 'Activa') && (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setProductForm({
+                                    ...prod,
+                                    id: "",
+                                    id_poliza_padre: prod.id,
+                                    tipo_movimiento: "Reemplazo",
+                                    createdAt: new Date().toISOString()
+                                  });
+                                  setShowProductModal(true);
+                                }}
+                                className="p-1.5 text-warning hover:bg-warning/10 rounded-md transition-colors"
+                                title="Reemplazar Producto"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div className="grid grid-cols-1 gap-2 mt-2">
                           <Field label="Póliza" value={prod.policyNumber} />
@@ -719,21 +754,48 @@ export default function ClientsPage() {
                 {editForm.products && editForm.products.length > 0 ? (
                   <div className="space-y-3 mt-2">
                     {editForm.products.map(p => (
-                      <div key={p.id} className="flex justify-between items-center p-3 bg-secondary/50 rounded-lg border border-border">
+                      <div key={p.id} className={`flex justify-between items-center p-3 rounded-lg border border-border ${p.status === 'Cancelada por Reemplazo' ? 'bg-secondary/30 opacity-75' : 'bg-secondary/50'}`}>
                         <div>
-                          <p className="text-sm font-semibold text-foreground">{p.category} - {p.company}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-foreground">{p.category} - {p.company}</p>
+                            {p.status === 'Cancelada por Reemplazo' && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-medium bg-destructive/15 text-destructive rounded-sm">Cancelada</span>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">{p.policyNumber || "Sin póliza"}</p>
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setProductForm(p);
-                            setShowProductModal(true);
-                          }}
-                          className="p-2 text-primary hover:bg-primary/10 rounded-md transition-colors"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          {(!p.status || p.status === 'Activa') && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setProductForm({
+                                  ...p,
+                                  id: "",
+                                  id_poliza_padre: p.id,
+                                  tipo_movimiento: "Reemplazo",
+                                  createdAt: new Date().toISOString()
+                                });
+                                setShowProductModal(true);
+                              }}
+                              className="p-2 text-warning hover:bg-warning/10 rounded-md transition-colors"
+                              title="Reemplazar Producto"
+                            >
+                              <RefreshCw className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setProductForm(p);
+                              setShowProductModal(true);
+                            }}
+                            className="p-2 text-primary hover:bg-primary/10 rounded-md transition-colors"
+                            title="Editar Producto"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1209,6 +1271,26 @@ export default function ClientsPage() {
               </button>
               <button
                 onClick={() => {
+                  let isReemplazo = false;
+                  let movimiento = productForm.tipo_movimiento || "Venta Nueva";
+                  const allProductsContext = editingClient ? (editForm.products || []) : (detail?.products || []);
+
+                  if (productForm.id_poliza_padre) {
+                    const oldProduct = allProductsContext.find(p => p.id === productForm.id_poliza_padre);
+                    if (oldProduct) {
+                      const oldDate = oldProduct.createdAt ? new Date(oldProduct.createdAt) : new Date();
+                      const now = new Date();
+                      const diffDays = Math.ceil(Math.abs(now.getTime() - oldDate.getTime()) / (1000 * 60 * 60 * 24));
+                      
+                      if (diffDays <= 180) {
+                        movimiento = "Reemplazo";
+                      } else {
+                        movimiento = "Venta Nueva";
+                      }
+                      isReemplazo = true;
+                    }
+                  }
+
                   const newProduct: Product = {
                     id: productForm.id || Math.random().toString(36).substring(2, 15),
                     category: productForm.category || "Auto",
@@ -1221,19 +1303,35 @@ export default function ClientsPage() {
                     effectiveDate: productForm.effectiveDate || "",
                     expirationDate: productForm.expirationDate || "",
                     drivers: productForm.drivers || [],
-                    createdAt: productForm.createdAt || new Date().toISOString()
+                    createdAt: productForm.createdAt || new Date().toISOString(),
+                    tipo_movimiento: isReemplazo ? movimiento : (productForm.tipo_movimiento || "Venta Nueva"),
+                    id_poliza_padre: productForm.id_poliza_padre,
+                    fecha_sustitucion: isReemplazo ? new Date().toISOString() : undefined,
+                    status: isReemplazo || !productForm.id ? "Activa" : (productForm.status || "Activa")
                   };
 
                   if (editingClient) {
-                    const existingProducts = editForm.products || [];
-                    if (productForm.id) {
+                    let existingProducts = editForm.products || [];
+                    if (isReemplazo) {
+                      existingProducts = existingProducts.map(p => p.id === productForm.id_poliza_padre ? { ...p, status: "Cancelada por Reemplazo" } : p);
+                    }
+                    if (productForm.id && !isReemplazo) {
                       setEditForm({ ...editForm, products: existingProducts.map(p => p.id === productForm.id ? newProduct : p) });
                     } else {
                       setEditForm({ ...editForm, products: [...existingProducts, newProduct] });
                     }
                     setShowProductModal(false);
                   } else if (detail) {
-                    const updatedProducts = [...(detail.products || []), newProduct];
+                    let existingProducts = detail.products || [];
+                    if (isReemplazo) {
+                      existingProducts = existingProducts.map(p => p.id === productForm.id_poliza_padre ? { ...p, status: "Cancelada por Reemplazo" } : p);
+                    }
+                    let updatedProducts;
+                    if (productForm.id && !isReemplazo) {
+                      updatedProducts = existingProducts.map(p => p.id === productForm.id ? newProduct : p);
+                    } else {
+                      updatedProducts = [...existingProducts, newProduct];
+                    }
                     updateClient(detail.id, { products: updatedProducts });
                     setShowProductModal(false);
                   }

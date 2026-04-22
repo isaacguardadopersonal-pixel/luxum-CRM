@@ -24,6 +24,10 @@ export interface Product {
   expirationDate?: string;
   drivers?: ProductDriver[];
   createdAt?: string;
+  tipo_movimiento?: 'Venta Nueva' | 'Renovación' | 'Reemplazo' | string;
+  id_poliza_padre?: string;
+  fecha_sustitucion?: string;
+  status?: 'Activa' | 'Cancelada por Reemplazo' | string;
 }
 
 export interface Reminder {

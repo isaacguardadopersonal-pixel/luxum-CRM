@@ -38,8 +38,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (mounted) {
           setSession(session);
           setUser(session?.user ?? null);
+          setIsLoading(false); // Quitamos la pantalla de carga de inmediato
           if (session?.user) {
-            await fetchUserRole(session.user.id);
+            fetchUserRole(session.user.id); // Fetch del rol en segundo plano
           } else {
             setRole(null);
             setUsername(null);
@@ -47,7 +48,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } catch (error) {
         console.error("Error fetching session:", error);
-      } finally {
         if (mounted) setIsLoading(false);
       }
     };
@@ -59,13 +59,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       setSession(newSession);
       setUser(newSession?.user ?? null);
+      setIsLoading(false);
       if (newSession?.user) {
-        await fetchUserRole(newSession.user.id);
+        fetchUserRole(newSession.user.id); // Fetch del rol en segundo plano
       } else {
         setRole(null);
         setUsername(null);
       }
-      setIsLoading(false);
     });
 
     return () => {

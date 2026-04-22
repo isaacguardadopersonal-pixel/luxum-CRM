@@ -12,7 +12,11 @@ CREATE TABLE products (
   "effectiveDate" TEXT,
   "expirationDate" TEXT,
   drivers JSONB DEFAULT '[]'::jsonb,
-  "createdAt" TEXT
+  "createdAt" TEXT,
+  tipo_movimiento TEXT DEFAULT 'Venta Nueva',
+  id_poliza_padre TEXT,
+  fecha_sustitucion TEXT,
+  status TEXT DEFAULT 'Activa'
 );
 
 -- 2. Deshabilitamos o apagamos el guardia (RLS) para permitir que Vercel pueda interactuar
