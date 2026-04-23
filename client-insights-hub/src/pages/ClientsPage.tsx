@@ -10,7 +10,7 @@ import Papa from "papaparse";
 
 export default function ClientsPage() {
   const { clients, loading, addClients, updateClient, deleteClient, pullFromSupabase, deleteAllClients } = useClients();
-  const { role } = useAuth();
+  const { role, username } = useAuth();
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -581,18 +581,20 @@ export default function ClientsPage() {
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                setProductForm(prod);
-                                setShowProductModal(true);
-                              }}
-                              className="p-1.5 text-primary hover:bg-primary/10 rounded-md transition-colors"
-                              title="Editar Producto"
-                            >
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            {(!prod.status || prod.status === 'Activa') && (
+                            {role === "admin" && (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setProductForm(prod);
+                                  setShowProductModal(true);
+                                }}
+                                className="p-1.5 text-primary hover:bg-primary/10 rounded-md transition-colors"
+                                title="Editar Producto"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {role === "admin" && (!prod.status || prod.status === 'Activa') && (
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -810,7 +812,7 @@ export default function ClientsPage() {
                           <p className="text-xs text-muted-foreground">{p.policyNumber || "Sin póliza"}</p>
                         </div>
                         <div className="flex items-center gap-1">
-                          {(!p.status || p.status === 'Activa') && (
+                          {role === "admin" && (!p.status || p.status === 'Activa') && (
                             <button
                               onClick={(e) => {
                                 e.preventDefault();
@@ -829,17 +831,19 @@ export default function ClientsPage() {
                               <RefreshCw className="w-4 h-4" />
                             </button>
                           )}
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setProductForm(p);
-                              setShowProductModal(true);
-                            }}
-                            className="p-2 text-primary hover:bg-primary/10 rounded-md transition-colors"
-                            title="Editar Producto"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                          {role === "admin" && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setProductForm(p);
+                                setShowProductModal(true);
+                              }}
+                              className="p-2 text-primary hover:bg-primary/10 rounded-md transition-colors"
+                              title="Editar Producto"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1355,29 +1359,46 @@ export default function ClientsPage() {
                     status: isReemplazo || !productForm.id ? "Activa" : (productForm.status || "Activa")
                   };
 
+                  const isNewProduct = !productForm.id;
+                  const isNewReplacement = isNewProduct && productForm.id_poliza_padre;
+
                   if (editingClient) {
                     let existingProducts = editForm.products || [];
-                    if (isReemplazo) {
+                    if (isNewReplacement) {
                       existingProducts = existingProducts.map(p => p.id === productForm.id_poliza_padre ? { ...p, status: "Cancelada por Reemplazo" } : p);
                     }
-                    if (productForm.id && !isReemplazo) {
-                      setEditForm({ ...editForm, products: existingProducts.map(p => p.id === productForm.id ? newProduct : p) });
-                    } else {
-                      setEditForm({ ...editForm, products: [...existingProducts, newProduct] });
-                    }
-                    setShowProductModal(false);
-                  } else if (detail) {
-                    let existingProducts = detail.products || [];
-                    if (isReemplazo) {
-                      existingProducts = existingProducts.map(p => p.id === productForm.id_poliza_padre ? { ...p, status: "Cancelada por Reemplazo" } : p);
-                    }
+
                     let updatedProducts;
-                    if (productForm.id && !isReemplazo) {
+                    if (!isNewProduct) {
                       updatedProducts = existingProducts.map(p => p.id === productForm.id ? newProduct : p);
                     } else {
                       updatedProducts = [...existingProducts, newProduct];
                     }
-                    updateClient(detail.id, { products: updatedProducts });
+                    setEditForm({ ...editForm, products: updatedProducts });
+                    setShowProductModal(false);
+                  } else if (detail) {
+                    let existingProducts = detail.products || [];
+                    if (isNewReplacement) {
+                      existingProducts = existingProducts.map(p => p.id === productForm.id_poliza_padre ? { ...p, status: "Cancelada por Reemplazo" } : p);
+                    }
+
+                    let updatedProducts;
+                    if (!isNewProduct) {
+                      updatedProducts = existingProducts.map(p => p.id === productForm.id ? newProduct : p);
+                    } else {
+                      updatedProducts = [...existingProducts, newProduct];
+                    }
+
+                    const actionName = isNewProduct ? "agregó" : "editó";
+                    const newLog: ChangeLog = {
+                      id: Math.random().toString(36).substring(2, 15),
+                      date: new Date().toISOString(),
+                      reason: `${username || 'Usuario'} ${actionName} el producto ${newProduct.category} - ${newProduct.policyNumber || 'Sin Póliza'}`
+                    };
+                    const updatedLogs = [...(detail.logs || []), newLog];
+
+                    updateClient(detail.id, { products: updatedProducts, logs: updatedLogs });
+                    setSelectedClient({ ...detail, products: updatedProducts, logs: updatedLogs });
                     setShowProductModal(false);
                   }
                 }}

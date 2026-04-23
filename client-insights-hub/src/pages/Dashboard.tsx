@@ -77,7 +77,6 @@ export default function Dashboard() {
     // Filter products based on selected month
     const isProductValid = (p: Product) => {
       if (!isProductEffectiveInMonth(p)) return false;
-      if (p.tipo_movimiento === 'Reemplazo') return false;
       if (p.status && p.status.toLowerCase().includes('cancelad')) return false;
       return true;
     };
