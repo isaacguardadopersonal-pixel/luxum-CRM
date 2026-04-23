@@ -53,6 +53,21 @@ export function useClients() {
                   const chunk = parsed.slice(i, i + chunkSize);
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   await supabase.from("clients").upsert(chunk as any);
+                  
+                  const productsToSync = [];
+                  for (const c of chunk) {
+                    if (c.products) {
+                      for (const p of c.products) {
+                        productsToSync.push({ ...p, client_id: c.id });
+                      }
+                    }
+                  }
+                  if (productsToSync.length > 0) {
+                    const pChunkSize = 500;
+                    for (let j = 0; j < productsToSync.length; j += pChunkSize) {
+                       await supabase.from("products").upsert(productsToSync.slice(j, j + pChunkSize) as any);
+                    }
+                  }
                 }
               }
               return parsed;
@@ -119,6 +134,21 @@ export function useClients() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { error } = await supabase.from("clients").upsert(chunk as any);
           if (error) throw error;
+          
+          const productsToSync = [];
+          for (const c of chunk) {
+            if (c.products) {
+              for (const p of c.products) {
+                productsToSync.push({ ...p, client_id: c.id });
+              }
+            }
+          }
+          if (productsToSync.length > 0) {
+            const pChunkSize = 500;
+            for (let j = 0; j < productsToSync.length; j += pChunkSize) {
+              await supabase.from("products").upsert(productsToSync.slice(j, j + pChunkSize) as any);
+            }
+          }
         }
       } catch (error) {
         console.error("Error sincronizando (Bulk) con Supabase:", error);
@@ -149,6 +179,20 @@ export function useClients() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await supabase.from("clients").upsert(clientToSync as any);
         if (error) throw error;
+
+        if (clientToSync.products) {
+           const productsToSync = clientToSync.products.map(p => ({ ...p, client_id: clientToSync!.id }));
+           if (productsToSync.length > 0) {
+             await supabase.from("products").upsert(productsToSync as any);
+           }
+           
+           const productIds = clientToSync.products.map(p => p.id);
+           if (productIds.length > 0) {
+              await supabase.from("products").delete().eq("client_id", clientToSync.id).not("id", "in", `(${productIds.map(id => `"${id}"`).join(',')})`);
+           } else {
+              await supabase.from("products").delete().eq("client_id", clientToSync.id);
+           }
+        }
       } catch (err) {
         console.error("Error actualizando en Supabase:", err);
         await queryClient.invalidateQueries({ queryKey: ["clients"] });
@@ -166,6 +210,7 @@ export function useClients() {
     try {
       const { error } = await supabase.from("clients").delete().eq("id", id);
       if (error) throw error;
+      await supabase.from("products").delete().eq("client_id", id);
     } catch (err) {
       console.error("Error eliminando de Supabase:", err);
       await queryClient.invalidateQueries({ queryKey: ["clients"] });
@@ -177,6 +222,7 @@ export function useClients() {
     try {
       const { error } = await supabase.from("clients").delete().neq("id", "none_existent");
       if (error) throw error;
+      await supabase.from("products").delete().neq("id", "none_existent");
     } catch (err) {
       console.error("Error vaciando base de datos en Supabase", err);
       await queryClient.invalidateQueries({ queryKey: ["clients"] });
