@@ -1398,7 +1398,6 @@ export default function ClientsPage() {
                     const updatedLogs = [...(detail.logs || []), newLog];
 
                     updateClient(detail.id, { products: updatedProducts, logs: updatedLogs });
-                    setSelectedClient({ ...detail, products: updatedProducts, logs: updatedLogs });
                     setShowProductModal(false);
                   }
                 }}
