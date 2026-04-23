@@ -138,6 +138,48 @@ export default function ClientsPage() {
     }
   };
 
+  const handleExport = () => {
+    const flatData = clients.flatMap(c => {
+      const base = {
+        "First Name": c.firstName || "",
+        "Last Name": c.lastName || "",
+        "Email": c.email || "",
+        "Work Phone": c.workPhone || "",
+        "DOB": c.dob || "",
+        "Drivers License #": c.driversLicense || "",
+        "DL State": c.dlState || "",
+        "Address": c.address || "",
+        "City": c.city || "",
+        "State": c.state || "",
+        "Zip": c.zip || "",
+        "Status": c.status || "",
+        "Referred By": c.referredBy || "",
+        "Notes": c.notes || ""
+      };
+
+      if (!c.products || c.products.length === 0) {
+        return [{ ...base, "Policy Number": "", "Company": "", "Premium": "", "Policy Type": "", "Effective Date": "", "Expiration Date": "" }];
+      }
+
+      return c.products.map(p => ({
+        ...base,
+        "Policy Number": p.policyNumber || "",
+        "Company": p.company || "",
+        "Premium": p.premium || "",
+        "Policy Type": p.category || "",
+        "Effective Date": p.effectiveDate || "",
+        "Expiration Date": p.expirationDate || ""
+      }));
+    });
+
+    const ws = XLSX.utils.json_to_sheet(flatData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+
+    const date = new Date().toLocaleDateString('es-ES').replace(/\//g, '-');
+    XLSX.writeFile(wb, `LUXUM ${date}.xlsx`);
+  };
+
   const handleAddNewClient = () => {
     if (!addForm.firstName?.trim() || !addForm.lastName?.trim() || !addForm.workPhone?.trim() || !addForm.dlState?.trim()) {
       alert(t("clients.modal.add_error_required"));
@@ -313,7 +355,7 @@ export default function ClientsPage() {
           >
             <Filter className="w-4 h-4" /> Filtros
           </button>
-          <button className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors border border-border">
+          <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors border border-border">
             <Download className="w-4 h-4" /> {t("common.export")}
           </button>
         </div>
