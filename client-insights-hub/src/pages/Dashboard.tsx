@@ -7,6 +7,12 @@ import { getStatusColor, type Client, type Product, type Reminder } from "@/lib/
 import { Search, Users, DollarSign, FileText, UserPlus, Bell, Gift, Calendar, LogOut, BookOpen, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
@@ -28,8 +34,11 @@ export default function Dashboard() {
   const { clients, loading } = useClients();
   const { t, locale, setLocale } = useLanguage();
   const { username, signOut } = useAuth();
-  const [searchQuery, setSearchQuery] = useState("");
   const [selectedClient, setSelectedClient] = useState<SelectedClientType | null>(null);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [showUniquePoliciesModal, setShowUniquePoliciesModal] = useState(false);
+  const [showReemplazosModal, setShowReemplazosModal] = useState(false);
+  const [selectedReferral, setSelectedReferral] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -54,17 +63,27 @@ export default function Dashboard() {
       return dateObj.getMonth() === filterMonth && dateObj.getFullYear() === filterYear;
     };
 
+    const isWithinNext30Days = (dateStr: string) => {
+      if (!dateStr) return false;
+      const dateObj = new Date(dateStr);
+      if (isNaN(dateObj.getTime())) return false;
+      const now = new Date();
+      const diffTime = dateObj.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays >= 0 && diffDays <= 30;
+    };
+
     const isProductExpiringInMonth = (p: Product) => {
-      if (isAll) return true;
       if (!p.expirationDate) return false;
+      if (isAll) return isWithinNext30Days(p.expirationDate);
       const dateObj = new Date(p.expirationDate);
       if (isNaN(dateObj.getTime())) return false;
       return dateObj.getMonth() === filterMonth && dateObj.getFullYear() === filterYear;
     };
 
     const isReminderInMonth = (r: Reminder) => {
-      if (isAll) return true;
       if (!r.date) return false;
+      if (isAll) return isWithinNext30Days(r.date);
       const dateObj = new Date(r.date);
       if (isNaN(dateObj.getTime())) return false;
       return dateObj.getMonth() === filterMonth && dateObj.getFullYear() === filterYear;
@@ -161,8 +180,30 @@ export default function Dashboard() {
     const activeClientsThisMonth = current.filter(c => (c.products || []).some(isProductEffectiveInMonth)).length;
 
     // Reemplazos this month
-    const reemplazosCount = clients.flatMap(c => c.products || [])
-      .filter(p => isProductEffectiveInMonth(p) && p.tipo_movimiento === 'Reemplazo').length;
+    const reemplazosList = clients.flatMap(c => 
+      (c.products || [])
+        .filter(p => isProductEffectiveInMonth(p) && p.tipo_movimiento === 'Reemplazo')
+        .map(p => {
+           const oldProduct = (c.products || []).find(old => old.id === p.id_poliza_padre);
+           return { client: c, product: p, oldProduct };
+        })
+    );
+    const reemplazosCount = reemplazosList.length;
+
+    const premiumClientsList = clients.map(c => {
+      if (c.status !== "Current Customer") return null;
+      const validProds = (c.products || []).filter(p => isProductEffectiveInMonth(p) && !p.status?.toLowerCase().includes('cancelad'));
+      const sum = validProds.reduce((acc, p) => acc + (p.premium || 0), 0);
+      if (sum === 0) return null;
+      return { client: c, validProds, sum };
+    }).filter(Boolean) as { client: Client, validProds: Product[], sum: number }[];
+
+    const uniquePoliciesList = clients.map(c => {
+      if (c.status !== "Current Customer") return null;
+      const validProds = (c.products || []).filter(p => isProductEffectiveInMonth(p) && !p.status?.toLowerCase().includes('cancelad'));
+      if (validProds.length !== 1) return null;
+      return { client: c, product: validProds[0] };
+    }).filter(Boolean) as { client: Client, product: Product }[];
 
     return {
       totalClients: clients.length,
@@ -175,6 +216,9 @@ export default function Dashboard() {
       companyData,
       typeData,
       expiringSoon,
+      premiumClientsList,
+      uniquePoliciesList,
+      reemplazosList,
       birthdaysToday,
       topReferrers,
       premiumByType,
@@ -204,17 +248,18 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center bg-secondary rounded-lg border border-border pr-1">
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <div className="flex items-center bg-[#0c1a35]/80 backdrop-blur-md rounded-xl border border-[#ca9e51]/30 p-1 shadow-lg shadow-[#ca9e51]/5">
+            <div className="relative flex items-center">
+              <Calendar className="absolute left-3 w-4 h-4 text-[#ca9e51]" />
               <input
                 type="month"
                 value={selectedMonth === 'all' ? '' : selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="pl-9 pr-3 py-2 bg-transparent text-sm text-foreground focus:outline-none"
+                className="pl-9 pr-4 py-1.5 bg-transparent text-sm font-medium text-white placeholder:text-slate-400 focus:outline-none cursor-pointer [color-scheme:dark]"
+                style={{ WebkitAppearance: 'none' }}
               />
             </div>
-            <div className="w-px h-5 bg-border mx-1"></div>
+            <div className="w-px h-6 bg-[#ca9e51]/20 mx-1"></div>
             <button
               onClick={() => {
                 if (selectedMonth === 'all') {
@@ -224,43 +269,61 @@ export default function Dashboard() {
                   setSelectedMonth('all');
                 }
               }}
-              className={`p-2 rounded-md transition-colors ${selectedMonth === 'all' ? 'bg-primary/20 text-primary' : 'hover:bg-background/50 text-muted-foreground hover:text-primary'}`}
+              className={`p-1.5 rounded-lg transition-colors ${selectedMonth === 'all' ? 'bg-[#ca9e51] text-[#071022]' : 'hover:bg-[#ca9e51]/20 text-[#ca9e51]/70 hover:text-[#ca9e51]'}`}
               title={selectedMonth === 'all' ? "Volver al mes actual" : "Ver todos los meses (Global)"}
             >
               <BookOpen className="w-4 h-4" />
             </button>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder={t("common.search")}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-secondary rounded-lg text-sm text-foreground placeholder:text-muted-foreground border border-border focus:outline-none focus:ring-2 focus:ring-primary/50 w-56"
-            />
-          </div>
+
           <button
             onClick={() => setLocale(locale === "es" ? "en" : "es")}
             className="w-10 h-10 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors font-semibold text-xs border border-border flex items-center justify-center"
           >
             {locale === "es" ? "EN" : "ES"}
           </button>
-          <button className="relative p-2.5 rounded-lg bg-secondary text-muted-foreground hover:text-foreground transition-colors">
-            <Bell className="w-5 h-5" />
-            {stats.expiringSoon.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive rounded-full text-[10px] text-destructive-foreground flex items-center justify-center font-bold">
-                {stats.expiringSoon.length}
-              </span>
-            )}
-          </button>
-          <button 
-            onClick={signOut} 
-            title={t("sidebar.logout")}
-            className="p-2.5 rounded-lg bg-secondary text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="relative p-2.5 rounded-lg bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+                <Bell className="w-5 h-5" />
+                {stats.expiringSoon.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-destructive rounded-full text-[10px] text-destructive-foreground flex items-center justify-center font-bold">
+                    {stats.expiringSoon.length}
+                  </span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 max-h-[400px] overflow-y-auto bg-card border-border">
+              {stats.expiringSoon.length === 0 ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  {t("dashboard.expiring.empty")}
+                </div>
+              ) : (
+                stats.expiringSoon.map((exp, i) => (
+                  <DropdownMenuItem 
+                    key={i} 
+                    className="flex flex-col items-start gap-1 p-3 cursor-pointer"
+                    onClick={() => setSelectedClient(exp)}
+                  >
+                    <div className="flex justify-between w-full items-center">
+                      <span className="font-semibold text-sm">{exp.client.firstName} {exp.client.lastName}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {exp.type === "product" 
+                          ? (exp.item as Product).expirationDate 
+                          : (exp.item as Reminder).date}
+                      </span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {exp.type === "product" 
+                        ? `${(exp.item as Product).category} - ${(exp.item as Product).policyNumber || 'Sin póliza'}`
+                        : (exp.item as Reminder).notes}
+                    </span>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
         </div>
       </div>
 
@@ -271,6 +334,7 @@ export default function Dashboard() {
           value={`$${stats.totalPremium.toLocaleString("en-US", { minimumFractionDigits: 0 })}`}
           icon={<DollarSign className="w-5 h-5" />}
           subtitle={t("dashboard.desc_active")}
+          onClick={() => setShowPremiumModal(true)}
         />
         <StatCard
           title={t("dashboard.active_clients")}
@@ -284,12 +348,14 @@ export default function Dashboard() {
           value={stats.uniquePolicies}
           icon={<FileText className="w-5 h-5" />}
           subtitle={t("dashboard.desc_policies")}
+          onClick={() => setShowUniquePoliciesModal(true)}
         />
         <StatCard
           title="Reemplazos"
           value={stats.reemplazosCount}
           icon={<RefreshCw className="w-5 h-5" />}
           subtitle="Pólizas sustituidas"
+          onClick={() => setShowReemplazosModal(true)}
         />
         <StatCard
           title={t("dashboard.expiring")}
@@ -425,7 +491,7 @@ export default function Dashboard() {
           </div>
           <div className="space-y-3">
             {stats.topReferrers.map((ref, i) => (
-              <div key={ref.name} className="flex items-center gap-3">
+              <div key={ref.name} className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-2 rounded-lg transition-colors" onClick={() => setSelectedReferral(ref.name)}>
                 <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center text-primary text-xs font-bold">
                   {i + 1}
                 </div>
@@ -519,8 +585,93 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      {/* Premium Modal */}
+      {showPremiumModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowPremiumModal(false)}>
+          <div className="glass-card max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4 border-b border-border/50 pb-2">Detalle de Total Premium</h2>
+            <div className="space-y-4">
+              {stats.premiumClientsList.map(({ client: c, validProds, sum }) => (
+                <div key={c.id} className="flex justify-between items-center bg-secondary/50 p-3 rounded-lg">
+                  <div>
+                    <p className="font-medium text-foreground">{c.firstName} {c.lastName}</p>
+                    <p className="text-xs text-muted-foreground">{validProds.map(p => p.category).join(', ')}</p>
+                  </div>
+                  <span className="font-bold text-success">${sum.toLocaleString("en-US", { minimumFractionDigits: 0 })}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowPremiumModal(false)} className="mt-6 w-full py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors">Cerrar</button>
+          </div>
+        </div>
+      )}
 
+      {/* Unique Policies Modal */}
+      {showUniquePoliciesModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowUniquePoliciesModal(false)}>
+          <div className="glass-card max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4 border-b border-border/50 pb-2">Clientes con Pólizas Únicas</h2>
+            <div className="space-y-4">
+              {stats.uniquePoliciesList.map(({ client: c, product }) => (
+                <div key={c.id} className="flex justify-between items-center bg-secondary/50 p-3 rounded-lg">
+                  <div>
+                    <p className="font-medium text-foreground">{c.firstName} {c.lastName}</p>
+                  </div>
+                  <span className="font-bold text-primary">{product.category}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowUniquePoliciesModal(false)} className="mt-6 w-full py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors">Cerrar</button>
+          </div>
+        </div>
+      )}
 
+      {/* Reemplazos Modal */}
+      {showReemplazosModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowReemplazosModal(false)}>
+          <div className="glass-card max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4 border-b border-border/50 pb-2">Detalle de Reemplazos</h2>
+            <div className="space-y-4">
+              {stats.reemplazosList.map(({ client: c, product: p, oldProduct }, idx) => (
+                <div key={idx} className="bg-secondary/50 p-4 rounded-lg flex flex-col gap-2">
+                  <p className="font-medium text-foreground">{c.firstName} {c.lastName}</p>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Cambió a:</p>
+                      <p className="text-success font-semibold">{p.company || 'N/A'} (${p.premium || 0})</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Póliza Anterior:</p>
+                      <p className="text-destructive font-semibold">{oldProduct?.company || 'N/A'} (-${oldProduct?.premium || 0})</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowReemplazosModal(false)} className="mt-6 w-full py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors">Cerrar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Referrals Modal */}
+      {selectedReferral && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedReferral(null)}>
+          <div className="glass-card max-w-md w-full p-6 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4 border-b border-border/50 pb-2">Referidos por {selectedReferral}</h2>
+            <div className="space-y-3">
+              {clients.filter(c => c.referredBy === selectedReferral).map(c => (
+                <div key={c.id} className="bg-secondary/50 p-3 rounded-lg flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+                    {c.firstName.charAt(0)}{c.lastName.charAt(0)}
+                  </div>
+                  <p className="font-medium text-foreground">{c.firstName} {c.lastName}</p>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setSelectedReferral(null)} className="mt-6 w-full py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors">Cerrar</button>
+          </div>
+        </div>
+      )}
 
     </CRMLayout>
   );

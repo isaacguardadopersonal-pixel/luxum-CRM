@@ -9,6 +9,8 @@ export interface ProductDriver {
   firstName: string;
   lastName: string;
   phone: string;
+  dob?: string;
+  driversLicense?: string;
 }
 
 export interface Product {
@@ -53,9 +55,22 @@ export interface Client {
   state: string;
   referredBy: string;
   notes: string;
-  products: Product[]; // Quitamos el '?' para que siempre sea un array (facilita el map/sync)
-  reminders: Reminder[]; // Quitamos el '?' para evitar el error de TypeScript
-  logs: ChangeLog[]; // Quitamos el '?' para consistencia
+  products: Product[];
+  reminders: Reminder[];
+  logs: ChangeLog[];
+  drivers?: Driver[];
+  created_by?: string;
+}
+
+export interface Driver {
+  id?: string;
+  client_id?: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  drivers_license: string;
+  dob: string;
+  driver_off?: string;
 }
 
 export function parseCSVRow(row: Record<string, string>): Client {

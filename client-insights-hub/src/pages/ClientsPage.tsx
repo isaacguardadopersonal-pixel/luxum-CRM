@@ -98,7 +98,9 @@ export default function ClientsPage() {
           for (const [key, value] of Object.entries(rawRow)) {
              rowData[key.trim()] = String(value).trim();
           }
-          return parseCSVRow(rowData);
+          const parsed = parseCSVRow(rowData);
+          parsed.created_by = username || 'unknown';
+          return parsed;
         });
         
         newClients.push(...mappedSheet);
@@ -126,7 +128,9 @@ export default function ClientsPage() {
       for (const [key, value] of Object.entries(rawRow)) {
          rowData[key.trim()] = String(value).trim();
       }
-      return parseCSVRow(rowData);
+      const parsed = parseCSVRow(rowData);
+      parsed.created_by = username || 'unknown';
+      return parsed;
     });
 
     if (newClients.length > 0) {
@@ -224,7 +228,8 @@ export default function ClientsPage() {
       notes: addForm.notes || "",
       products: createdProducts,
       reminders: [],
-      logs: []
+      logs: [],
+      created_by: username || 'unknown'
     };
 
     addClients([newClient]);
@@ -279,28 +284,32 @@ export default function ClientsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{t("clients.title")}</h1>
+          <h1 className="text-2xl font-bold text-foreground">Lista de Clientes de {username || "Luxum"}</h1>
           <p className="text-sm text-muted-foreground mt-1">{filtered.length} {t("clients.found")}</p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
-            onClick={() => {
-              if(window.confirm("¿Estás absolutamente seguro de que deseas BORRAR TODOS los clientes? Esta acción eliminará toda la base de datos local y no se puede deshacer.")) {
-                deleteAllClients();
-              }
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-lg text-sm font-medium hover:bg-destructive/20 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            Borrar Todos
-          </button>
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground border border-border rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors"
-          >
-            <Upload className="w-4 h-4" />
-            {t("common.import")}
-          </button>
+          {role === 'admin' && (
+            <>
+              <button 
+                onClick={() => {
+                  if(window.confirm("¿Estás absolutamente seguro de que deseas BORRAR TODOS los clientes? Esta acción eliminará toda la base de datos local y no se puede deshacer.")) {
+                    deleteAllClients();
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-lg text-sm font-medium hover:bg-destructive/20 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Borrar Todos
+              </button>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-secondary text-foreground border border-border rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                {t("common.import")}
+              </button>
+            </>
+          )}
           <button
             onClick={() => { setAddForm({ status: "Quoting" }); setProductForm({ category: "Auto", drivers: [] }); setShowAddModal(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
@@ -357,9 +366,11 @@ export default function ClientsPage() {
           >
             <Filter className="w-4 h-4" /> Filtros
           </button>
-          <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors border border-border">
-            <Download className="w-4 h-4" /> {t("common.export")}
-          </button>
+          {role === 'admin' && (
+            <button onClick={handleExport} className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors border border-border">
+              <Download className="w-4 h-4" /> {t("common.export")}
+            </button>
+          )}
         </div>
 
         {/* Extended Filters */}
@@ -515,22 +526,30 @@ export default function ClientsPage() {
           <div className="glass-card max-w-3xl w-full p-6 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <h2 className="text-lg font-bold text-foreground">{detail.firstName} {detail.lastName}</h2>
-                <button
-                  onClick={() => { setEditingClient(detail.id); setEditForm(detail); setEditReason(""); }}
-                  className="p-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors"
-                  title="Editar cliente"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
+                <div>
+                  <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                    {detail.firstName} {detail.lastName}
+                  </h2>
+                  <p className="text-[10px] text-muted-foreground uppercase mt-0.5">Creado por: {detail.created_by || 'unknown'}</p>
+                </div>
+                {(role === 'admin' || detail.created_by === username) && (
+                  <button
+                    onClick={() => { setEditingClient(detail.id); setEditForm(detail); setEditReason(""); }}
+                    className="p-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors"
+                    title="Editar cliente"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                )}
               </div>
               <select 
                 value={detail.status}
+                disabled={!(role === 'admin' || detail.created_by === username)}
                 onChange={(e) => {
                   const newStatus = e.target.value;
                   updateClient(detail.id, { status: newStatus });
                 }}
-                className={`text-xs font-medium px-2.5 py-1.5 rounded-full cursor-pointer outline-none border border-transparent hover:border-border transition-colors appearance-none text-center ${getStatusColor(detail.status)}`}
+                className={`text-xs font-medium px-2.5 py-1.5 rounded-full outline-none border border-transparent transition-colors appearance-none text-center ${getStatusColor(detail.status)} ${(role === 'admin' || detail.created_by === username) ? 'cursor-pointer hover:border-border' : 'cursor-not-allowed opacity-80'}`}
               >
                 <option value="Current Customer">{t("status.active")}</option>
                 <option value="Quoting">{t("status.quoting")}</option>
@@ -566,13 +585,16 @@ export default function ClientsPage() {
                           </div>
                           <div className="flex gap-1 items-center">
                             <span className="text-xs text-muted-foreground mr-1">{prod.company}</span>
-                            {role === "admin" && (
+                            {(role === 'admin' || detail.created_by === username) && (
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
                                   if (window.confirm("¿Estás seguro de que deseas eliminar este producto? Esta acción no se puede deshacer.")) {
                                     const updatedProducts = detail.products?.filter(p => p.id !== prod.id) || [];
-                                    updateClient(detail.id, { products: updatedProducts });
+                                    updateClient(detail.id, { 
+                                      products: updatedProducts,
+                                      logs: [...(detail.logs || []), { id: Math.random().toString(36).substring(2, 9), date: new Date().toISOString(), reason: `[${username}] Eliminó producto: ${prod.category} - ${prod.policyNumber}` }]
+                                    });
                                   }
                                 }}
                                 className="p-1.5 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
@@ -581,7 +603,7 @@ export default function ClientsPage() {
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            {role === "admin" && (
+                            {(role === 'admin' || detail.created_by === username) && (
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -594,7 +616,7 @@ export default function ClientsPage() {
                                 <Edit className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            {role === "admin" && (!prod.status || prod.status === 'Activa') && (
+                            {(role === 'admin' || detail.created_by === username) && (!prod.status || prod.status === 'Activa') && (
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -883,7 +905,7 @@ export default function ClientsPage() {
                   const newLog: ChangeLog = {
                     id: Math.random().toString(36).substring(2, 15),
                     date: new Date().toISOString(),
-                    reason: editReason
+                    reason: `[${username || 'Usuario'}] ${editReason}`
                   };
                   const updatedLogs = [...(editForm.logs || []), newLog];
                   updateClient(editingClient, { ...editForm, logs: updatedLogs });
@@ -1098,6 +1120,22 @@ export default function ClientsPage() {
                                   setProductForm({ ...productForm, drivers: newDrivers });
                                 }} placeholder="+1 (___) ___-____" className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
                               </div>
+                              <div>
+                                <label className="text-xs text-muted-foreground mb-1 block">Fecha de Nacimiento</label>
+                                <input type="text" value={driver.dob || ""} onChange={(e) => {
+                                  const newDrivers = [...productForm.drivers!];
+                                  newDrivers[idx].dob = formatDateInput(e.target.value);
+                                  setProductForm({ ...productForm, drivers: newDrivers });
+                                }} placeholder="MM/DD/YYYY" className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                              </div>
+                              <div>
+                                <label className="text-xs text-muted-foreground mb-1 block">Licencia</label>
+                                <input type="text" value={driver.driversLicense || ""} onChange={(e) => {
+                                  const newDrivers = [...productForm.drivers!];
+                                  newDrivers[idx].driversLicense = e.target.value;
+                                  setProductForm({ ...productForm, drivers: newDrivers });
+                                }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -1304,6 +1342,22 @@ export default function ClientsPage() {
                               newDrivers[idx].phone = formatPhoneInput(e.target.value);
                               setProductForm({ ...productForm, drivers: newDrivers });
                             }} placeholder="+1 (___) ___-____" className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Fecha de Nacimiento</label>
+                            <input type="text" value={driver.dob || ""} onChange={(e) => {
+                              const newDrivers = [...productForm.drivers!];
+                              newDrivers[idx].dob = formatDateInput(e.target.value);
+                              setProductForm({ ...productForm, drivers: newDrivers });
+                            }} placeholder="MM/DD/YYYY" className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Licencia</label>
+                            <input type="text" value={driver.driversLicense || ""} onChange={(e) => {
+                              const newDrivers = [...productForm.drivers!];
+                              newDrivers[idx].driversLicense = e.target.value;
+                              setProductForm({ ...productForm, drivers: newDrivers });
+                            }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
                           </div>
                         </div>
                       </div>

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Mail, KeyRound, Loader2, ArrowLeft } from "lucide-react";
+import { Mail, KeyRound, Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const { session } = useAuth();
@@ -16,6 +16,7 @@ export default function Login() {
   const [loginInput, setLoginInput] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Redirigir si ya está autenticado
   if (session) {
@@ -104,13 +105,20 @@ export default function Login() {
                 <KeyRound className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 bg-slate-900/50 border-slate-700 text-white placeholder:text-slate-500"
+                  className="pl-10 pr-10 bg-slate-900/50 border-slate-700 text-white placeholder:text-slate-500"
                   disabled={isLoading}
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3 text-gray-400 hover:text-white transition-colors"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
             <Button type="submit" className="w-full bg-[#ca9e51] hover:bg-[#b08b45] text-slate-900 font-bold" disabled={isLoading}>

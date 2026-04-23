@@ -35,9 +35,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const initializeAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        
+        // Check 6-hour expiration
+        const loginTimeStr = localStorage.getItem('luxum_login_time');
+        let isExpired = false;
+        if (loginTimeStr && session) {
+          const loginTime = parseInt(loginTimeStr, 10);
+          if (Date.now() - loginTime > 6 * 60 * 60 * 1000) {
+            isExpired = true;
+            await supabase.auth.signOut();
+            localStorage.removeItem('luxum_login_time');
+          }
+        }
+
         if (mounted) {
-          setSession(session);
-          setUser(session?.user ?? null);
+          setSession(isExpired ? null : session);
+          setUser(isExpired ? null : (session?.user ?? null));
           setIsLoading(false); // Quitamos la pantalla de carga de inmediato
           if (session?.user) {
             fetchUserRole(session.user.id); // Fetch del rol en segundo plano
@@ -57,6 +70,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (event === 'INITIAL_SESSION') return; // Evitar llamada doble en el arranque
       
+      if (event === 'SIGNED_IN') {
+        localStorage.setItem('luxum_login_time', Date.now().toString());
+      }
+      if (event === 'SIGNED_OUT') {
+        localStorage.removeItem('luxum_login_time');
+      }
+
       setSession(newSession);
       setUser(newSession?.user ?? null);
       setIsLoading(false);

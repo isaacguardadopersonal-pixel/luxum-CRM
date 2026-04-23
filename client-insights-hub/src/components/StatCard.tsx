@@ -8,11 +8,15 @@ interface StatCardProps {
   change?: string;
   changeType?: "positive" | "negative";
   subtitle?: string;
+  onClick?: () => void;
 }
 
-export function StatCard({ title, value, icon, change, changeType = "positive", subtitle }: StatCardProps) {
+export function StatCard({ title, value, icon, change, changeType = "positive", subtitle, onClick }: StatCardProps) {
   return (
-    <div className="stat-card animate-fade-in">
+    <div 
+      className={`stat-card animate-fade-in ${onClick ? 'cursor-pointer hover:border-primary/50 transition-colors' : ''}`}
+      onClick={onClick}
+    >
       <div className="flex items-start justify-between mb-3">
         <span className="text-sm text-muted-foreground font-medium">{title}</span>
         {icon ? (

@@ -10,6 +10,7 @@ const sanitizeProductForDb = (p: Product, clientId: string) => {
   delete (cleanP as any).tipo_movimiento;
   delete (cleanP as any).id_poliza_padre;
   delete (cleanP as any).fecha_sustitucion;
+  delete (cleanP as any).drivers;
   return cleanP;
 };
 
@@ -29,7 +30,7 @@ export function useClients() {
         while (fetchMore) {
           const { data, error } = await supabase
             .from("clients")
-            .select("*")
+            .select("*, drivers:add_driver(*)")
             .range(from, from + step - 1);
             
           if (error) throw error;
@@ -47,7 +48,26 @@ export function useClients() {
         }
         
         if (allData.length > 0) {
-          return allData as Client[];
+          const mappedData = allData.map(c => {
+            if (c.products && c.drivers) {
+              c.products = c.products.map((p: any) => {
+                 p.drivers = c.drivers
+                   .filter((d: any) => d.product_id === p.id)
+                   .map((d: any) => ({
+                     id: d.id,
+                     firstName: d.first_name,
+                     lastName: d.last_name,
+                     phone: d.phone,
+                     driversLicense: d.drivers_license,
+                     dob: d.dob
+                   }));
+                 return p;
+              });
+            }
+            delete c.drivers;
+            return c;
+          });
+          return mappedData as Client[];
         } else {
           // Si es primera vez y no hay en Supabase, cargamos el csv por defecto y lo mandamos a Supabase
           try {
@@ -201,6 +221,28 @@ export function useClients() {
               await supabase.from("products").delete().eq("client_id", clientToSync.id).not("id", "in", `(${productIds.map(id => `"${id}"`).join(',')})`);
            } else {
               await supabase.from("products").delete().eq("client_id", clientToSync.id);
+           }
+
+           // Sincronizar Conductores
+           const driversToSync = clientToSync.products.flatMap(p => 
+              (p.drivers || []).map(d => ({
+                 id: d.id,
+                 client_id: clientToSync!.id,
+                 product_id: p.id,
+                 first_name: d.firstName,
+                 last_name: d.lastName,
+                 phone: d.phone,
+                 drivers_license: d.driversLicense || '',
+                 dob: d.dob || ''
+              }))
+           );
+
+           if (driversToSync.length > 0) {
+             await supabase.from("add_driver").upsert(driversToSync);
+             const driverIds = driversToSync.map(d => d.id);
+             await supabase.from("add_driver").delete().eq("client_id", clientToSync.id).not("id", "in", `(${driverIds.map(id => `"${id}"`).join(',')})`);
+           } else {
+             await supabase.from("add_driver").delete().eq("client_id", clientToSync.id);
            }
         }
       } catch (err) {
