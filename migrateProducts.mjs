@@ -9,14 +9,33 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 async function migrateProducts() {
   console.log("Iniciando migración de productos antiguos...");
 
-  // 1. Obtener todos los clientes que tengan la columna `products` llena.
-  const { data: clients, error: fetchErr } = await supabase
-    .from("clients")
-    .select("id, products");
+  // 1. Obtener todos los clientes con paginación para evitar el límite de 1000
+  let clients = [];
+  let from = 0;
+  const step = 1000;
+  let fetchMore = true;
 
-  if (fetchErr) {
-    console.error("Error al obtener clientes:", fetchErr);
-    return;
+  while (fetchMore) {
+    const { data, error: fetchErr } = await supabase
+      .from("clients")
+      .select("id, products")
+      .range(from, from + step - 1);
+
+    if (fetchErr) {
+      console.error("Error al obtener clientes:", fetchErr);
+      return;
+    }
+    
+    if (data && data.length > 0) {
+      clients = clients.concat(data);
+      if (data.length < step) {
+        fetchMore = false;
+      } else {
+        from += step;
+      }
+    } else {
+      fetchMore = false;
+    }
   }
 
   if (!clients || clients.length === 0) {
@@ -54,15 +73,26 @@ async function migrateProducts() {
     return;
   }
 
-  console.log(`Encontrados ${allProductsToInsert.length} productos históricos. Migrando a la nueva tabla...`);
+  console.log(`Encontrados ${allProductsToInsert.length} productos históricos. Migrando a la nueva tabla en lotes...`);
 
-  const { error: upsertErr } = await supabase
-    .from("products")
-    .upsert(allProductsToInsert, { onConflict: "id" });
+  const chunkSize = 500;
+  let hasError = false;
+  
+  for (let i = 0; i < allProductsToInsert.length; i += chunkSize) {
+    const chunk = allProductsToInsert.slice(i, i + chunkSize);
+    const { error: upsertErr } = await supabase
+      .from("products")
+      .upsert(chunk, { onConflict: "id" });
 
-  if (upsertErr) {
-    console.error("❌ Falló la migración a la tabla de productos:", upsertErr);
-  } else {
+    if (upsertErr) {
+      console.error(`❌ Falló la migración del lote ${i / chunkSize + 1}:`, upsertErr);
+      hasError = true;
+    } else {
+      console.log(`✅ Lote ${i / chunkSize + 1} insertado (${chunk.length} productos).`);
+    }
+  }
+  
+  if (!hasError) {
     console.log("✅ ¡Migración de productos completada exitosamente!");
   }
 }

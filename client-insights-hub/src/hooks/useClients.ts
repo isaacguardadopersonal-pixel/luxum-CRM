@@ -4,6 +4,16 @@ import Papa from "papaparse";
 import { Client, parseCSVRow } from "@/lib/clientData";
 import { supabase } from "@/integrations/supabase/client";
 
+const sanitizeProductForDb = (p: Product, clientId: string) => {
+  const cleanP = { ...p, client_id: clientId };
+  delete (cleanP as any).status;
+  delete (cleanP as any).tipo_movimiento;
+  delete (cleanP as any).id_poliza_padre;
+  delete (cleanP as any).fecha_sustitucion;
+  return cleanP;
+};
+
+
 export function useClients() {
   const queryClient = useQueryClient();
 
@@ -58,7 +68,7 @@ export function useClients() {
                   for (const c of chunk) {
                     if (c.products) {
                       for (const p of c.products) {
-                        productsToSync.push({ ...p, client_id: c.id });
+                        productsToSync.push(sanitizeProductForDb(p, c.id));
                       }
                     }
                   }
@@ -139,7 +149,7 @@ export function useClients() {
           for (const c of chunk) {
             if (c.products) {
               for (const p of c.products) {
-                productsToSync.push({ ...p, client_id: c.id });
+                productsToSync.push(sanitizeProductForDb(p, c.id));
               }
             }
           }
@@ -181,7 +191,7 @@ export function useClients() {
         if (error) throw error;
 
         if (clientToSync.products) {
-           const productsToSync = clientToSync.products.map(p => ({ ...p, client_id: clientToSync!.id }));
+           const productsToSync = clientToSync.products.map(p => sanitizeProductForDb(p, clientToSync!.id));
            if (productsToSync.length > 0) {
              await supabase.from("products").upsert(productsToSync as any);
            }
