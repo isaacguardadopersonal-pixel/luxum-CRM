@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import Papa from "papaparse";
-import { Client, parseCSVRow } from "@/lib/clientData";
+import { Client, parseCSVRow, Product } from "@/lib/clientData";
 import { supabase } from "@/integrations/supabase/client";
 
 const sanitizeProductForDb = (p: Product, clientId: string) => {
