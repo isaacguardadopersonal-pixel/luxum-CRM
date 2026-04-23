@@ -248,33 +248,34 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center bg-[#0c1a35]/80 backdrop-blur-md rounded-xl border border-[#ca9e51]/30 p-1 shadow-lg shadow-[#ca9e51]/5">
-            <div className="relative flex items-center">
-              <Calendar className="absolute left-3 w-4 h-4 text-[#ca9e51]" />
-              <input
-                type="month"
-                value={selectedMonth === 'all' ? '' : selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="pl-9 pr-4 py-1.5 bg-transparent text-sm font-medium text-white placeholder:text-slate-400 focus:outline-none cursor-pointer [color-scheme:dark]"
-                style={{ WebkitAppearance: 'none' }}
-              />
-            </div>
-            <div className="w-px h-6 bg-[#ca9e51]/20 mx-1"></div>
-            <button
-              onClick={() => {
-                if (selectedMonth === 'all') {
-                  const now = new Date();
-                  setSelectedMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
-                } else {
-                  setSelectedMonth('all');
-                }
-              }}
-              className={`p-1.5 rounded-lg transition-colors ${selectedMonth === 'all' ? 'bg-[#ca9e51] text-[#071022]' : 'hover:bg-[#ca9e51]/20 text-[#ca9e51]/70 hover:text-[#ca9e51]'}`}
-              title={selectedMonth === 'all' ? "Volver al mes actual" : "Ver todos los meses (Global)"}
-            >
-              <BookOpen className="w-4 h-4" />
-            </button>
+          {/* Calendar Box */}
+          <div className="relative flex items-center bg-card/90 backdrop-blur-md rounded-xl border border-primary/30 p-1 shadow-lg shadow-primary/10 transition-colors hover:border-primary/50">
+            <Calendar className="absolute left-3 w-4 h-4 text-primary" />
+            <input
+              type="month"
+              value={selectedMonth === 'all' ? '' : selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="pl-9 pr-4 py-1.5 bg-transparent text-sm font-medium text-foreground focus:outline-none cursor-pointer [color-scheme:dark]"
+              style={{ WebkitAppearance: 'none' }}
+              title="Seleccionar mes"
+            />
           </div>
+          
+          {/* Book / Global Box */}
+          <button
+            onClick={() => {
+              if (selectedMonth === 'all') {
+                const now = new Date();
+                setSelectedMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+              } else {
+                setSelectedMonth('all');
+              }
+            }}
+            className={`flex items-center justify-center p-2.5 rounded-xl border transition-all duration-300 shadow-lg ${selectedMonth === 'all' ? 'bg-primary border-primary text-primary-foreground shadow-primary/20' : 'bg-card/90 border-primary/30 text-primary shadow-primary/5 hover:border-primary/50 hover:bg-primary/10'}`}
+            title={selectedMonth === 'all' ? "Volver al mes actual" : "Ver todos los meses (Global)"}
+          >
+            <BookOpen className="w-5 h-5" />
+          </button>
 
           <button
             onClick={() => setLocale(locale === "es" ? "en" : "es")}

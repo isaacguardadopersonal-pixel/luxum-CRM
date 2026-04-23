@@ -5,26 +5,26 @@
 @tailwind utilities;
 @layer base {
   :root {
-    --background: 228 12% 10%;
+    --background: 221 61% 7%;
     --foreground: 210 20% 95%;
 
-    --card: 228 12% 14%;
+    --card: 220 63% 13%;
     --card-foreground: 210 20% 95%;
 
-    --popover: 228 12% 14%;
+    --popover: 220 63% 13%;
     --popover-foreground: 210 20% 95%;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 38 54% 55%;
+    --primary-foreground: 221 61% 7%;
 
-    --secondary: 228 12% 20%;
+    --secondary: 220 63% 20%;
     --secondary-foreground: 210 20% 90%;
 
-    --muted: 228 10% 18%;
-    --muted-foreground: 215 15% 55%;
+    --muted: 220 63% 18%;
+    --muted-foreground: 215 15% 65%;
 
-    --accent: 45 93% 58%;
-    --accent-foreground: 228 12% 10%;
+    --accent: 38 54% 65%;
+    --accent-foreground: 221 61% 7%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
@@ -38,20 +38,20 @@
     --info: 217 91% 60%;
     --info-foreground: 0 0% 100%;
 
-    --border: 228 10% 20%;
-    --input: 228 10% 20%;
-    --ring: 217 91% 60%;
+    --border: 38 54% 25%;
+    --input: 220 63% 20%;
+    --ring: 38 54% 55%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 228 14% 8%;
-    --sidebar-foreground: 215 15% 55%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 228 12% 14%;
+    --sidebar-background: 221 61% 5%;
+    --sidebar-foreground: 215 15% 65%;
+    --sidebar-primary: 38 54% 55%;
+    --sidebar-primary-foreground: 221 61% 7%;
+    --sidebar-accent: 220 63% 13%;
     --sidebar-accent-foreground: 210 20% 95%;
-    --sidebar-border: 228 10% 16%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-border: 38 54% 20%;
+    --sidebar-ring: 38 54% 55%;
 
     --chart-blue: 217 91% 60%;
     --chart-green: 142 71% 45%;
@@ -74,10 +74,10 @@
 
 @layer utilities {
   .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-border/50 rounded-xl;
+    @apply bg-card/90 backdrop-blur-xl border border-primary/20 rounded-xl shadow-lg shadow-primary/5;
   }
   .stat-card {
-    @apply glass-card p-5 transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5;
+    @apply glass-card p-5 transition-all duration-300 hover:border-primary/40 hover:shadow-primary/10;
   }
   .sidebar-icon {
     @apply p-2.5 rounded-xl transition-all duration-200 text-muted-foreground hover:text-foreground hover:bg-secondary;
