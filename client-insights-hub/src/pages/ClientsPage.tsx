@@ -176,8 +176,10 @@ export default function ClientsPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Clientes");
 
-    const date = new Date().toLocaleDateString('es-ES').replace(/\//g, '-');
-    XLSX.writeFile(wb, `LUXUM ${date}.xlsx`);
+    const now = new Date();
+    const date = now.toLocaleDateString('es-ES').replace(/\//g, '-');
+    const time = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }).replace(/:/g, '');
+    XLSX.writeFile(wb, `LUXUM ${date} ${time}.xlsx`);
   };
 
   const handleAddNewClient = () => {
