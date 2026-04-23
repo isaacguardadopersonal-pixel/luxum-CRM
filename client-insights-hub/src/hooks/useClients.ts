@@ -11,11 +11,33 @@ export function useClients() {
     queryKey: ["clients"],
     queryFn: async () => {
       try {
-        const { data, error } = await supabase.from("clients").select("*");
-        if (error) throw error;
+        let allData: any[] = [];
+        let from = 0;
+        const step = 1000;
+        let fetchMore = true;
+
+        while (fetchMore) {
+          const { data, error } = await supabase
+            .from("clients")
+            .select("*")
+            .range(from, from + step - 1);
+            
+          if (error) throw error;
+          
+          if (data && data.length > 0) {
+            allData = [...allData, ...data];
+            if (data.length < step) {
+              fetchMore = false;
+            } else {
+              from += step;
+            }
+          } else {
+            fetchMore = false;
+          }
+        }
         
-        if (data && data.length > 0) {
-          return data as Client[];
+        if (allData.length > 0) {
+          return allData as Client[];
         } else {
           // Si es primera vez y no hay en Supabase, cargamos el csv por defecto y lo mandamos a Supabase
           try {
@@ -26,8 +48,12 @@ export function useClients() {
               const parsed = (result.data as Record<string, string>[]).map(parseCSVRow);
               
               if (parsed.length > 0) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                await supabase.from("clients").upsert(parsed as any);
+                const chunkSize = 500;
+                for (let i = 0; i < parsed.length; i += chunkSize) {
+                  const chunk = parsed.slice(i, i + chunkSize);
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  await supabase.from("clients").upsert(chunk as any);
+                }
               }
               return parsed;
             }
@@ -87,9 +113,13 @@ export function useClients() {
 
     if (newClients.length > 0) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await supabase.from("clients").upsert(newClients as any);
-        if (error) throw error;
+        const chunkSize = 500;
+        for (let i = 0; i < newClients.length; i += chunkSize) {
+          const chunk = newClients.slice(i, i + chunkSize);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error } = await supabase.from("clients").upsert(chunk as any);
+          if (error) throw error;
+        }
       } catch (error) {
         console.error("Error sincronizando (Bulk) con Supabase:", error);
         // Podríamos invalidar la query si falla, pero para CRM lo dejamos así

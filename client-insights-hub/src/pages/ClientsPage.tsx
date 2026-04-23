@@ -372,11 +372,12 @@ export default function ClientsPage() {
             </thead>
             <tbody>
               {paginated.map((client) => {
-                const totalPremium = (client.products || []).reduce((sum, p) => sum + (p.premium || 0), 0);
-                const primaryProduct = client.products && client.products.length > 0
-                  ? client.products.reduce((max, obj) => (obj.premium || 0) > (max.premium || 0) ? obj : max)
+                const activeProducts = (client.products || []).filter(p => !p.status || !p.status.toLowerCase().includes('cancelad'));
+                const totalPremium = activeProducts.reduce((sum, p) => sum + (p.premium || 0), 0);
+                const primaryProduct = activeProducts.length > 0
+                  ? activeProducts.reduce((max, obj) => (obj.premium || 0) > (max.premium || 0) ? obj : max)
                   : undefined;
-                const productCount = (client.products || []).length;
+                const productCount = activeProducts.length;
                 return (
                   <tr
                     key={client.id}

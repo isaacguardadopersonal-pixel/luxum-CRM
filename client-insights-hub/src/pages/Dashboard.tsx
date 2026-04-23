@@ -75,10 +75,15 @@ export default function Dashboard() {
     const notInterested = clients.filter((c) => c.status === "Not Interested");
     
     // Filter products based on selected month
-    const validProductsInCurrent = current.flatMap(c => c.products || [])
-      .filter(p => isProductEffectiveInMonth(p) && p.tipo_movimiento !== 'Reemplazo' && p.status !== 'Cancelada por Reemplazo');
-    const validProductsInAll = clients.flatMap(c => c.products || [])
-      .filter(p => isProductEffectiveInMonth(p) && p.tipo_movimiento !== 'Reemplazo' && p.status !== 'Cancelada por Reemplazo');
+    const isProductValid = (p: Product) => {
+      if (!isProductEffectiveInMonth(p)) return false;
+      if (p.tipo_movimiento === 'Reemplazo') return false;
+      if (p.status && p.status.toLowerCase().includes('cancelad')) return false;
+      return true;
+    };
+
+    const validProductsInCurrent = current.flatMap(c => c.products || []).filter(isProductValid);
+    const validProductsInAll = clients.flatMap(c => c.products || []).filter(isProductValid);
 
     const totalPremium = validProductsInCurrent.reduce((sum, p) => sum + (p.premium || 0), 0);
     const uniquePolicies = new Set(validProductsInCurrent.map((p) => p.policyNumber).filter(Boolean)).size;
