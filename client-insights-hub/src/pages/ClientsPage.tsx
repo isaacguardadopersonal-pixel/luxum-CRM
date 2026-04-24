@@ -81,6 +81,13 @@ export default function ClientsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    let globalReferral = "";
+    if (file.name.includes("-")) {
+      const parts = file.name.split("-");
+      const afterHyphen = parts.slice(1).join("-").trim();
+      globalReferral = afterHyphen.replace(/\.[^/.]+$/, "").trim();
+    }
+
     const reader = new FileReader();
     reader.onload = (evt) => {
       const bstr = evt.target?.result;
@@ -99,7 +106,10 @@ export default function ClientsPage() {
              rowData[key.trim()] = String(value).trim();
           }
           const parsed = parseCSVRow(rowData);
-          parsed.created_by = username || 'unknown';
+          parsed.created_by = 'unknown';
+          if (globalReferral && !parsed.referredBy) {
+            parsed.referredBy = globalReferral;
+          }
           return parsed;
         });
         
@@ -129,7 +139,7 @@ export default function ClientsPage() {
          rowData[key.trim()] = String(value).trim();
       }
       const parsed = parseCSVRow(rowData);
-      parsed.created_by = username || 'unknown';
+      parsed.created_by = 'unknown';
       return parsed;
     });
 
@@ -533,7 +543,7 @@ export default function ClientsPage() {
                   </h2>
                   <p className="text-[10px] text-muted-foreground uppercase mt-0.5">Creado por: {detail.created_by || 'unknown'}</p>
                 </div>
-                {(role === 'admin' || detail.created_by === username) && (
+                {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
                   <button
                     onClick={() => { setEditingClient(detail.id); setEditForm(detail); setEditReason(""); }}
                     className="p-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors"
@@ -545,12 +555,12 @@ export default function ClientsPage() {
               </div>
               <select 
                 value={detail.status}
-                disabled={!(role === 'admin' || detail.created_by === username)}
+                disabled={!(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown')}
                 onChange={(e) => {
                   const newStatus = e.target.value;
                   updateClient(detail.id, { status: newStatus });
                 }}
-                className={`text-xs font-medium px-2.5 py-1.5 rounded-full outline-none border border-transparent transition-colors appearance-none text-center ${getStatusColor(detail.status)} ${(role === 'admin' || detail.created_by === username) ? 'cursor-pointer hover:border-border' : 'cursor-not-allowed opacity-80'}`}
+                className={`text-xs font-medium px-2.5 py-1.5 rounded-full outline-none border border-transparent transition-colors appearance-none text-center ${getStatusColor(detail.status)} ${(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') ? 'cursor-pointer hover:border-border' : 'cursor-not-allowed opacity-80'}`}
               >
                 <option value="Current Customer">{t("status.active")}</option>
                 <option value="Quoting">{t("status.quoting")}</option>
@@ -587,7 +597,7 @@ export default function ClientsPage() {
                           </div>
                           <div className="flex gap-1 items-center">
                             <span className="text-xs text-muted-foreground mr-1">{prod.company}</span>
-                            {(role === 'admin' || detail.created_by === username) && (
+                            {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -605,7 +615,7 @@ export default function ClientsPage() {
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            {(role === 'admin' || detail.created_by === username) && (
+                            {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -618,7 +628,7 @@ export default function ClientsPage() {
                                 <Edit className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            {(role === 'admin' || detail.created_by === username) && (!prod.status || prod.status === 'Activa') && (
+                            {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (!prod.status || prod.status === 'Activa') && (
                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
