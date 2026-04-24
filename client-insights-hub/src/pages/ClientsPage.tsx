@@ -107,8 +107,9 @@ export default function ClientsPage() {
           }
           const parsed = parseCSVRow(rowData);
           parsed.created_by = 'unknown';
-          if (globalReferral && !parsed.referredBy) {
-            parsed.referredBy = globalReferral;
+          if (globalReferral) {
+            if (!parsed.referredBy) parsed.referredBy = globalReferral;
+            parsed.status = 'IMPORTANTE';
           }
           return parsed;
         });
