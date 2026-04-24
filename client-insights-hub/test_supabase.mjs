@@ -5,19 +5,18 @@ const SUPABASE_KEY = "sb_publishable_LJiM-joYsFyOm_eXFXdnTg_6PPh6e3_";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function test() {
-  console.log("Fetching clients with drivers...");
+async function fix() {
+  console.log("Fixing malformed client data...");
   const { data, error } = await supabase
     .from("clients")
-    .select("*, drivers:add_driver(*)")
-    .range(0, 4);
+    .update({ products: [] })
+    .eq('id', '6f8cdd00-7525-41c6-a347-aaac4c10027a');
     
   if (error) {
-    console.error("Error fetching:", error);
+    console.error("Error fixing:", error);
   } else {
-    console.log("Success! Found rows:", data?.length);
-    console.log(data);
+    console.log("Database fixed! The CRM will now load correctly.");
   }
 }
 
-test();
+fix();

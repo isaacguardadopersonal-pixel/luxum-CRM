@@ -139,6 +139,7 @@ export function getStatusColor(status: string): string {
     case "Quoting": return "status-quoting";
     case "Opportunities": return "status-opportunities";
     case "Not Interested": return "status-not-interested";
+    case "IMPORTANTE": return "status-importante";
     default: return "status-quoting";
   }
 }

@@ -97,4 +97,7 @@
   .status-opportunities {
     @apply bg-[hsl(var(--info))]/15 text-[hsl(var(--info))] border border-[hsl(var(--info))]/20;
   }
+  .status-importante {
+    @apply bg-purple-500/15 text-purple-400 border border-purple-500/20;
+  }
 }

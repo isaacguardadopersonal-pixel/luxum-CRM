@@ -75,7 +75,7 @@ export default function ClientsPage() {
   const [filters, setFilters] = useState({ company: "", dlState: "" });
   const perPage = 15;
 
-  const statuses = ["all", "Current Customer", "Quoting", "Opportunities", "Not Interested"];
+  const statuses = ["all", "IMPORTANTE", "Current Customer", "Quoting", "Opportunities", "Not Interested"];
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -323,8 +323,9 @@ export default function ClientsPage() {
       {/* Status Tabs */}
       <div className="flex gap-3 mb-6 flex-wrap">
         {statuses.map((s) => {
-          const label = s === "all" ? t("status.all") : s === "Current Customer" ? t("status.actives") : s === "Quoting" ? t("status.quoting") : s === "Opportunities" ? t("status.opportunities_plural") : t("status.not_interested_plural");
+          const label = s === "all" ? t("status.all") : s === "IMPORTANTE" ? "Importante" : s === "Current Customer" ? t("status.actives") : s === "Quoting" ? t("status.quoting") : s === "Opportunities" ? t("status.opportunities_plural") : t("status.not_interested_plural");
           const colorClass =
+            s === "IMPORTANTE" ? "bg-purple-500/15 text-purple-400 border-purple-500/20" :
             s === "Current Customer" ? "bg-success/15 text-success border-success/20" :
               s === "Quoting" ? "bg-warning/15 text-warning border-warning/20" :
                 s === "Opportunities" ? "bg-info/15 text-info border-info/20" :
@@ -459,7 +460,7 @@ export default function ClientsPage() {
                     <td className="px-4 py-3 text-sm text-muted-foreground">{primaryProduct?.expirationDate || "—"}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getStatusColor(client.status)}`}>
-                        {client.status === "Current Customer" ? t("status.active") : client.status === "Quoting" ? t("status.quoting") : client.status === "Opportunities" ? t("status.opportunities") : client.status === "Not Interested" ? t("status.not_interested") : client.status}
+                        {client.status === "IMPORTANTE" ? "Importante" : client.status === "Current Customer" ? t("status.active") : client.status === "Quoting" ? t("status.quoting") : client.status === "Opportunities" ? t("status.opportunities") : client.status === "Not Interested" ? t("status.not_interested") : client.status}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -555,6 +556,7 @@ export default function ClientsPage() {
                 <option value="Quoting">{t("status.quoting")}</option>
                 <option value="Opportunities">{t("status.opportunities")}</option>
                 <option value="Not Interested">{t("status.not_interested")}</option>
+                <option value="IMPORTANTE">Importante</option>
               </select>
             </div>
 
@@ -769,6 +771,7 @@ export default function ClientsPage() {
                       <option value="Quoting">Quoting</option>
                       <option value="Opportunities">Opportunities</option>
                       <option value="Not Interested">Not Interested</option>
+                      <option value="IMPORTANTE">IMPORTANTE</option>
                     </select>
                   </div>
                   <div>
