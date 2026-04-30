@@ -100,4 +100,7 @@
   .status-importante {
     @apply bg-purple-500/15 text-purple-400 border border-purple-500/20;
   }
+  .status-website {
+    @apply bg-blue-500/15 text-blue-400 border border-blue-500/20;
+  }
 }
