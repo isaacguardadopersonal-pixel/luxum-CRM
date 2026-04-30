@@ -176,8 +176,13 @@ export function useClients() {
         const chunkSize = 500;
         for (let i = 0; i < newClients.length; i += chunkSize) {
           const chunk = newClients.slice(i, i + chunkSize);
+          const chunkDataForDb = chunk.map(c => {
+            const data = { ...c };
+            delete (data as any).drivers;
+            return data;
+          });
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error } = await supabase.from("clients").upsert(chunk as any);
+          const { error } = await supabase.from("clients").upsert(chunkDataForDb as any);
           if (error) throw error;
           
           const productsToSync = [];
@@ -221,8 +226,11 @@ export function useClients() {
 
     if (clientToSync) {
       try {
+        const clientDataForDb = { ...clientToSync };
+        delete (clientDataForDb as any).drivers;
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await supabase.from("clients").upsert(clientToSync as any);
+        const { error } = await supabase.from("clients").upsert(clientDataForDb as any);
         if (error) throw error;
 
         if (clientToSync.products) {
