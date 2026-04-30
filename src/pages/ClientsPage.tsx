@@ -191,7 +191,7 @@ export default function ClientsPage() {
     return clients.filter((c) => {
       const matchesSearch =
         !search ||
-        `${c.firstName} ${c.lastName} ${c.products?.[0]?.policyNumber || ""} ${c.email} ${c.products?.[0]?.company || ""}`
+        `${c.firstName} ${c.lastName} ${c.products?.[0]?.policyNumber || ""} ${c.email} ${c.products?.[0]?.company || ""} ${c.referredBy || ""}`
           .toLowerCase()
           .includes(search.toLowerCase());
       const matchesStatus = statusFilter === "all" || c.status === statusFilter;

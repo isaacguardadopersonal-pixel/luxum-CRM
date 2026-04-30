@@ -238,7 +238,8 @@ export function useClients() {
            );
 
            if (driversToSync.length > 0) {
-             await supabase.from("add_driver").upsert(driversToSync);
+             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             await supabase.from("add_driver").upsert(driversToSync as any);
              const driverIds = driversToSync.map(d => d.id);
              await supabase.from("add_driver").delete().eq("client_id", clientToSync.id).not("id", "in", `(${driverIds.map(id => `"${id}"`).join(',')})`);
            } else {
