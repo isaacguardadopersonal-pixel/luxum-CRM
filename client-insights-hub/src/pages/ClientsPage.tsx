@@ -4,7 +4,7 @@ import { useClients } from "@/hooks/useClients";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { getStatusColor, Client, Product, ChangeLog, Reminder, parseCSVRow } from "@/lib/clientData";
-import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, Phone, Mail, Eye, Upload, Edit, Trash2, RefreshCw } from "lucide-react";
+import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, ChevronDown, Phone, Mail, Eye, Upload, Edit, Trash2, RefreshCw } from "lucide-react";
 import * as XLSX from 'xlsx';
 import Papa from "papaparse";
 
@@ -21,10 +21,16 @@ export default function ClientsPage() {
   const [editForm, setEditForm] = useState<Partial<Client>>({});
   const [editReason, setEditReason] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAddProductFields, setShowAddProductFields] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [productForm, setProductForm] = useState<Partial<Product>>({ category: "Auto" });
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderForm, setReminderForm] = useState<{ id?: string; date?: string; notes?: string }>({});
+  const [showAddNoteModal, setShowAddNoteModal] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [showDetailAddDriverModal, setShowDetailAddDriverModal] = useState(false);
+  const [newDetailDriver, setNewDetailDriver] = useState<any>({});
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const productCategories = ["Auto", "Home", "Rent", "Comercial", "Commercial auto", "Life"];
   const formatPhoneInput = (value: string): string => {
     let digits = value.replace(/\D/g, "");
@@ -240,6 +246,7 @@ export default function ClientsPage() {
       products: createdProducts,
       reminders: [],
       logs: [],
+      drivers: addForm.drivers || [],
       created_by: username || 'unknown'
     };
 
@@ -258,7 +265,9 @@ export default function ClientsPage() {
         `${c.firstName} ${c.lastName} ${c.products?.[0]?.policyNumber || ""} ${c.email} ${c.products?.[0]?.company || ""} ${c.referredBy || ""}`
           .toLowerCase()
           .includes(search.toLowerCase());
-      const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+      const matchesStatus = statusFilter === "all" 
+        ? !["Opportunities", "Website", "IMPORTANTE"].includes(c.status)
+        : c.status === statusFilter;
       const matchesCompany = !filters.company || (c.products && c.products.length > 0 && c.products[0].company === filters.company);
       const matchesDLState = !filters.dlState || c.dlState === filters.dlState;
       return matchesSearch && matchesStatus && matchesCompany && matchesDLState;
@@ -273,7 +282,9 @@ export default function ClientsPage() {
   const detail = selectedClient ? clients.find(c => c.id === selectedClient) || null : null;
 
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: clients.length };
+    const counts: Record<string, number> = { 
+      all: clients.filter(c => !["Opportunities", "Website", "IMPORTANTE"].includes(c.status)).length 
+    };
     clients.forEach((c) => {
       counts[c.status] = (counts[c.status] || 0) + 1;
     });
@@ -536,57 +547,152 @@ export default function ClientsPage() {
       {/* Client Detail Modal */}
       {detail && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedClient(null)}>
-          <div className="glass-card max-w-3xl w-full p-6 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div>
-                  <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                    {detail.firstName} {detail.lastName}
-                  </h2>
-                  <p className="text-[10px] text-muted-foreground uppercase mt-0.5">Creado por: {detail.created_by || 'unknown'}</p>
+          <div className="glass-card max-w-[90vw] md:max-w-6xl w-full p-0 max-h-[90vh] overflow-hidden animate-fade-in flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
+            
+            {/* Left Pane: Main Client Info */}
+            <div className="w-full md:w-2/3 p-6 flex flex-col h-[50vh] md:h-[90vh] overflow-y-auto border-r border-border/50 custom-scrollbar">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-border/50">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                      {detail.firstName} {detail.lastName}
+                    </h2>
+                    <p className="text-[10px] text-muted-foreground uppercase mt-0.5">Creado por: {detail.created_by || 'unknown'}</p>
+                  </div>
+                  {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
+                    <button
+                      onClick={() => { setEditingClient(detail.id); setEditForm(detail); setEditReason(""); }}
+                      className="p-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors"
+                      title="Editar cliente"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
-                {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
-                  <button
-                    onClick={() => { setEditingClient(detail.id); setEditForm(detail); setEditReason(""); }}
-                    className="p-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors"
-                    title="Editar cliente"
-                  >
-                    <Edit className="w-4 h-4" />
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        if (role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') {
+                          setShowStatusDropdown(!showStatusDropdown);
+                        }
+                      }}
+                      className={`text-xs font-medium px-4 py-1.5 rounded-full border transition-colors flex items-center gap-1.5 shadow-sm ${getStatusColor(detail.status)} ${(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') ? 'cursor-pointer hover:border-border/80' : 'cursor-not-allowed opacity-80'}`}
+                    >
+                      {detail.status === "Current Customer" ? t("status.active") : 
+                       detail.status === "Quoting" ? t("status.quoting") : 
+                       detail.status === "Opportunities" ? t("status.opportunities") : 
+                       detail.status === "Not Interested" ? t("status.not_interested") : 
+                       detail.status}
+                      {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
+                        <ChevronDown className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
+                      )}
+                    </button>
+                    
+                    {showStatusDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowStatusDropdown(false)}></div>
+                        <div className="absolute top-full mt-2 right-0 w-44 bg-[#1e2343] border border-border/40 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden z-50 animate-fade-in backdrop-blur-xl">
+                          <div className="p-1">
+                            {[
+                              { val: "Current Customer", label: t("status.active") },
+                              { val: "Quoting", label: t("status.quoting") },
+                              { val: "Opportunities", label: t("status.opportunities") },
+                              { val: "Not Interested", label: t("status.not_interested") },
+                              { val: "IMPORTANTE", label: "Importante" },
+                              { val: "Website", label: "Website" },
+                            ].map(opt => (
+                              <button
+                                key={opt.val}
+                                onClick={() => {
+                                  updateClient(detail.id, { status: opt.val });
+                                  setShowStatusDropdown(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 text-xs font-medium transition-all rounded-lg flex items-center ${detail.status === opt.val ? 'bg-primary/20 text-primary' : 'text-foreground/80 hover:bg-white/5 hover:text-foreground'}`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <button onClick={() => setSelectedClient(null)} className="p-1.5 bg-secondary text-muted-foreground rounded-lg hover:bg-secondary/80 hover:text-foreground transition-colors">
+                    <Trash2 className="w-4 h-4 opacity-0 pointer-events-none absolute" /> {/* Placeholder for spacing if needed */}
+                    <span className="text-xl leading-none">&times;</span>
                   </button>
-                )}
+                </div>
               </div>
-              <select 
-                value={detail.status}
-                disabled={!(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown')}
-                onChange={(e) => {
-                  const newStatus = e.target.value;
-                  updateClient(detail.id, { status: newStatus });
-                }}
-                className={`text-xs font-medium px-2.5 py-1.5 rounded-full outline-none border border-transparent transition-colors appearance-none text-center ${getStatusColor(detail.status)} ${(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') ? 'cursor-pointer hover:border-border' : 'cursor-not-allowed opacity-80'}`}
-              >
-                <option value="Current Customer">{t("status.active")}</option>
-                <option value="Quoting">{t("status.quoting")}</option>
-                <option value="Opportunities">{t("status.opportunities")}</option>
-                <option value="Not Interested">{t("status.not_interested")}</option>
-                <option value="IMPORTANTE">Importante</option>
-                <option value="Website">Website</option>
-              </select>
-            </div>
 
-            <div className="space-y-4">
-              <Section title={t("field.contact")}>
-                <Field label={t("field.email")} value={detail.email} />
-                <Field label={t("field.phone")} value={detail.workPhone} />
-                <Field label={t("field.address")} value={`${detail.address}, ${detail.city}, ${detail.state} ${detail.zip}`} />
-              </Section>
+              <div className="space-y-6 flex-1">
+                <Section title={t("field.contact")}>
+                  <Field label={t("field.email")} value={detail.email} />
+                  <Field label={t("field.phone")} value={detail.workPhone} />
+                  <Field label={t("field.address")} value={`${detail.address}, ${detail.city}, ${detail.state} ${detail.zip}`} />
+                </Section>
 
               <Section title={t("field.id_section")}>
                 <Field label={t("field.dob")} value={detail.dob} />
                 <Field label={t("field.license")} value={detail.driversLicense} />
                 <Field label={t("field.dl_state")} value={detail.dlState} />
+                {detail.referredBy && <Field label={t("field.referred_by")} value={detail.referredBy} />}
               </Section>
 
-              <Section title="Productos">
+              <Section title={
+                <div className="flex justify-between items-center w-full pr-4">
+                  <span>Conductores Adicionales</span>
+                  <button
+                    onClick={(e) => { e.preventDefault(); setNewDetailDriver({}); setShowDetailAddDriverModal(true); }}
+                    className="flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors"
+                  >
+                    + Add Driver
+                  </button>
+                </div>
+              }>
+                {detail.drivers && detail.drivers.length > 0 ? (
+                  <div className="flex flex-col gap-2 mt-2">
+                    {detail.drivers.map((d: any, i: number) => (
+                      <div key={i} className="text-xs p-3 bg-secondary/30 rounded-lg border border-border/50">
+                        <div className="flex justify-between font-medium text-foreground mb-1">
+                          <span>{d.firstName || d.first_name} {d.lastName || d.last_name}</span>
+                          <span>{d.phone}</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>DOB: {d.dob || '—'}</span>
+                          <span>Lic: {d.driversLicense || d.drivers_license || '—'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-2">No hay conductores adicionales registrados.</p>
+                )}
+              </Section>
+
+              <Section title={
+                <div className="flex justify-between items-center w-full pr-4">
+                  <span>Productos</span>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setProductForm({
+                        category: "Auto",
+                        firstName: detail.firstName,
+                        lastName: detail.lastName,
+                        licenseNumber: detail.driversLicense,
+                        effectiveDate: "",
+                        expirationDate: "",
+                        drivers: []
+                      });
+                      setShowProductModal(true);
+                    }}
+                    className="flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors"
+                  >
+                    + Add Producto
+                  </button>
+                </div>
+              }>
                 {detail.products && detail.products.length > 0 ? (
                   <div className="space-y-3 mb-3">
                     {detail.products.map(prod => (
@@ -678,84 +784,78 @@ export default function ClientsPage() {
                 ) : (
                   <p className="text-xs text-muted-foreground mb-3">No hay productos adicionales registrados.</p>
                 )}
-                <button
-                  onClick={() => {
-                    setProductForm({
-                      category: "Auto",
-                      firstName: detail.firstName,
-                      lastName: detail.lastName,
-                      licenseNumber: detail.driversLicense,
-                      effectiveDate: "",
-                      expirationDate: "",
-                      drivers: []
-                    });
-                    setShowProductModal(true);
-                  }}
-                  className="w-full py-2 bg-primary/10 text-primary border border-primary/20 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors"
-                >
-                  + Agregar Producto
-                </button>
               </Section>
 
-              <Section title="Recordatorios / Agenda">
-                {detail.reminders && detail.reminders.length > 0 ? (
-                  <div className="space-y-3 mb-3">
-                    {detail.reminders.map((r, i) => (
-                      <div key={i} className="p-3 bg-secondary/50 rounded-lg border border-border">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-sm font-bold text-foreground">Agendado para: <span className="text-primary">{r.date}</span></span>
-                          <span className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()}</span>
-                        </div>
-                        <p className="text-sm text-foreground mt-2">{r.notes}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground mb-3">No hay recordatorios agendados.</p>
-                )}
-                <button
-                  onClick={() => {
-                    setReminderForm({ date: "", notes: "" });
-                    setShowReminderModal(true);
-                  }}
-                  className="w-full py-2 bg-primary/10 text-primary border border-primary/20 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors"
-                >
-                  + Agendar Recordatorio
-                </button>
-              </Section>
-
-              {(detail.referredBy || detail.notes) && (
-                <Section title={t("field.additional")}>
-                  {detail.referredBy && <Field label={t("field.referred_by")} value={detail.referredBy} />}
-                  {detail.notes && <Field label={t("field.notes")} value={detail.notes} />}
-                </Section>
-              )}
-
-              <Section title="Historial de Modificaciones">
-                {detail.logs && detail.logs.length > 0 ? (
-                  <div className="space-y-3 mb-3">
-                    {detail.logs.slice().reverse().map(log => (
-                      <div key={log.id} className="p-3 bg-secondary/50 rounded-lg border border-border text-xs">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-semibold text-foreground text-primary">Edición</span>
-                          <span className="text-muted-foreground">{new Date(log.date).toLocaleString()}</span>
-                        </div>
-                        <p className="text-foreground">{log.reason}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground mb-3">No hay historial de cambios registrado.</p>
-                )}
-              </Section>
+              </div>
             </div>
 
-            <button
-              onClick={() => setSelectedClient(null)}
-              className="mt-6 w-full py-2.5 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors"
-            >
-              {t("common.close")}
-            </button>
+            {/* Right Pane: Notes, Reminders, Logs */}
+            <div className="w-full md:w-1/3 p-6 bg-secondary/20 flex flex-col h-[40vh] md:h-[90vh] overflow-y-auto custom-scrollbar">
+              <h3 className="text-sm font-bold text-foreground mb-4 uppercase tracking-wider text-primary">Seguimiento</h3>
+              <div className="space-y-6">
+                <Section title="Recordatorios / Agenda">
+                  {detail.reminders && detail.reminders.length > 0 ? (
+                    <div className="space-y-3 mb-3">
+                      {detail.reminders.map((r, i) => (
+                        <div key={i} className="p-3 bg-secondary/50 rounded-lg border border-border">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm font-bold text-foreground">Agendado para: <span className="text-primary">{r.date}</span></span>
+                            <span className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          <p className="text-sm text-foreground mt-2">{r.notes}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mb-3">No hay recordatorios agendados.</p>
+                  )}
+                  <button
+                    onClick={() => {
+                      setReminderForm({ date: "", notes: "" });
+                      setShowReminderModal(true);
+                    }}
+                    className="w-full py-2 bg-primary/10 text-primary border border-primary/20 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors"
+                  >
+                    + Agendar Recordatorio
+                  </button>
+                </Section>
+
+                {detail.notes && (
+                  <Section title={t("field.additional")}>
+                    <Field label={t("field.notes")} value={detail.notes} />
+                  </Section>
+                )}
+
+                <Section title="Historial de Modificaciones">
+                  {detail.logs && detail.logs.length > 0 ? (
+                    <div className="space-y-3 mb-3">
+                      {detail.logs.slice().reverse().map(log => (
+                        <div key={log.id} className="p-3 bg-secondary/50 rounded-lg border border-border text-xs">
+                          <div className="flex justify-between items-start mb-1">
+                            <span className="font-semibold text-foreground text-primary">Edición</span>
+                            <span className="text-muted-foreground">{new Date(log.date).toLocaleString()}</span>
+                          </div>
+                          <p className="text-foreground">{log.reason}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mb-3">No hay historial de cambios registrado.</p>
+                  )}
+                  <div className="flex justify-between items-center mb-4">
+                    <button
+                      onClick={() => {
+                        setNoteText("");
+                        setShowAddNoteModal(true);
+                      }}
+                      className="w-full py-2 bg-primary/10 text-primary border border-primary/20 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors"
+                    >
+                      + Agregar Nota
+                    </button>
+                  </div>
+                </Section>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1011,156 +1111,167 @@ export default function ClientsPage() {
                 </div>
               </Section>
 
-              <Section title="Agregar Producto (Opcional)">
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Categoría de Producto</label>
-                    <select
-                      value={productForm.category || "Auto"}
-                      onChange={(e) => {
-                        const newCat = e.target.value;
-                        const allowed = getAllowedCompanies(newCat);
-                        setProductForm({ ...productForm, category: newCat, company: allowed.includes(productForm.company || "") ? productForm.company : "" });
-                      }}
-                      className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    >
-                      {productCategories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
+              <Section title="Conductores Adicionales">
+                <div className="flex justify-end mb-2">
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const newDrivers = [...(addForm.drivers || []), { id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36), first_name: "", last_name: "", phone: "", drivers_license: "", dob: "" }];
+                      setAddForm({ ...addForm, drivers: newDrivers });
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium hover:bg-primary/20 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" /> Add Driver
+                  </button>
+                </div>
+                {addForm.drivers && addForm.drivers.length > 0 && (
+                  <div className="space-y-3 mt-3">
+                    {addForm.drivers.map((driver, idx) => (
+                      <div key={idx} className="relative p-3 bg-secondary/30 rounded-lg border border-border/50">
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const newDrivers = addForm.drivers!.filter((_, i) => i !== idx);
+                            setAddForm({ ...addForm, drivers: newDrivers });
+                          }}
+                          className="absolute right-2 top-2 p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        <div className="grid grid-cols-2 gap-3 pr-8">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Nombre</label>
+                            <input type="text" value={driver.first_name} onChange={(e) => {
+                              const newDrivers = [...addForm.drivers!];
+                              newDrivers[idx].first_name = e.target.value;
+                              setAddForm({ ...addForm, drivers: newDrivers });
+                            }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Apellido</label>
+                            <input type="text" value={driver.last_name} onChange={(e) => {
+                              const newDrivers = [...addForm.drivers!];
+                              newDrivers[idx].last_name = e.target.value;
+                              setAddForm({ ...addForm, drivers: newDrivers });
+                            }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="text-xs text-muted-foreground mb-1 block">Teléfono</label>
+                            <input type="text" value={driver.phone} onChange={(e) => {
+                              const newDrivers = [...addForm.drivers!];
+                              newDrivers[idx].phone = formatPhoneInput(e.target.value);
+                              setAddForm({ ...addForm, drivers: newDrivers });
+                            }} placeholder="+1 (___) ___-____" className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Fecha de Nacimiento</label>
+                            <input type="text" value={driver.dob || ""} onChange={(e) => {
+                              const newDrivers = [...addForm.drivers!];
+                              newDrivers[idx].dob = formatDateInput(e.target.value);
+                              setAddForm({ ...addForm, drivers: newDrivers });
+                            }} placeholder="MM/DD/YYYY" className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Licencia</label>
+                            <input type="text" value={driver.drivers_license || ""} onChange={(e) => {
+                              const newDrivers = [...addForm.drivers!];
+                              newDrivers[idx].drivers_license = e.target.value;
+                              setAddForm({ ...addForm, drivers: newDrivers });
+                            }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
+                )}
+              </Section>
 
-                  <div className="grid grid-cols-2 gap-4">
+              <Section title={
+                <div className="flex justify-between items-center w-full pr-4">
+                  <span>Agregar Producto (Opcional)</span>
+                  <button
+                    onClick={(e) => { e.preventDefault(); setShowAddProductFields(!showAddProductFields); }}
+                    className="flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors"
+                  >
+                    {showAddProductFields ? 'Ocultar' : '+ Agregar Producto'}
+                  </button>
+                </div>
+              }>
+                {showAddProductFields && (
+                  <div className="space-y-4 mt-2 animate-fade-in">
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Nombre en la póliza</label>
-                      <input type="text" value={productForm.firstName || ""} onChange={(e) => setProductForm({ ...productForm, firstName: e.target.value })} placeholder={addForm.firstName} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Apellido en la póliza</label>
-                      <input type="text" value={productForm.lastName || ""} onChange={(e) => setProductForm({ ...productForm, lastName: e.target.value })} placeholder={addForm.lastName} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Número de Póliza</label>
-                      <input type="text" value={productForm.policyNumber || ""} onChange={(e) => setProductForm({ ...productForm, policyNumber: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Compañía</label>
+                      <label className="text-xs text-muted-foreground mb-1 block">Categoría de Producto</label>
                       <select
-                        value={productForm.company || ""}
-                        onChange={(e) => setProductForm({ ...productForm, company: e.target.value })}
+                        value={productForm.category || "Auto"}
+                        onChange={(e) => {
+                          const newCat = e.target.value;
+                          const allowed = getAllowedCompanies(newCat);
+                          setProductForm({ ...productForm, category: newCat, company: allowed.includes(productForm.company || "") ? productForm.company : "" });
+                        }}
                         className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
                       >
-                        <option value="" disabled>Selecciona una compañía...</option>
-                        {getAllowedCompanies(productForm.category || "Auto").map(comp => (
-                          <option key={comp} value={comp}>{comp}</option>
+                        {productCategories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
                         ))}
                       </select>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Prima ($)</label>
-                      <input type="number" value={productForm.premium || ""} onChange={(e) => setProductForm({ ...productForm, premium: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Número de Licencia</label>
-                      <input type="text" value={productForm.licenseNumber || ""} onChange={(e) => setProductForm({ ...productForm, licenseNumber: e.target.value })} placeholder={addForm.driversLicense} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Fecha de Efectividad</label>
-                      <input type="text" value={productForm.effectiveDate || ""} onChange={(e) => setProductForm({ ...productForm, effectiveDate: formatDateInput(e.target.value) })} placeholder="MM/DD/YYYY" className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Fecha de Vencimiento</label>
-                      <input type="text" value={productForm.expirationDate || ""} onChange={(e) => setProductForm({ ...productForm, expirationDate: formatDateInput(e.target.value) })} placeholder="MM/DD/YYYY" className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                    </div>
-                  </div>
-
-                  {/* Drivers Section */}
-                  <div className="pt-2 border-t border-border/50">
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase">Conductores Adicionales</label>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          const newDrivers = [...(productForm.drivers || []), { id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36), firstName: "", lastName: "", phone: "" }];
-                          setProductForm({ ...productForm, drivers: newDrivers });
-                        }}
-                        className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium hover:bg-primary/20 transition-colors"
-                      >
-                        <Plus className="w-3 h-3" /> Add Driver
-                      </button>
-                    </div>
-                    {productForm.drivers && productForm.drivers.length > 0 && (
-                      <div className="space-y-3 mt-3">
-                        {productForm.drivers.map((driver, idx) => (
-                          <div key={idx} className="relative p-3 bg-secondary/30 rounded-lg border border-border/50">
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                const newDrivers = productForm.drivers!.filter((_, i) => i !== idx);
-                                setProductForm({ ...productForm, drivers: newDrivers });
-                              }}
-                              className="absolute right-2 top-2 p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                            <div className="grid grid-cols-2 gap-3 pr-8">
-                              <div>
-                                <label className="text-xs text-muted-foreground mb-1 block">Nombre</label>
-                                <input type="text" value={driver.firstName} onChange={(e) => {
-                                  const newDrivers = [...productForm.drivers!];
-                                  newDrivers[idx].firstName = e.target.value;
-                                  setProductForm({ ...productForm, drivers: newDrivers });
-                                }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                              </div>
-                              <div>
-                                <label className="text-xs text-muted-foreground mb-1 block">Apellido</label>
-                                <input type="text" value={driver.lastName} onChange={(e) => {
-                                  const newDrivers = [...productForm.drivers!];
-                                  newDrivers[idx].lastName = e.target.value;
-                                  setProductForm({ ...productForm, drivers: newDrivers });
-                                }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                              </div>
-                              <div className="col-span-2">
-                                <label className="text-xs text-muted-foreground mb-1 block">Teléfono</label>
-                                <input type="text" value={driver.phone} onChange={(e) => {
-                                  const newDrivers = [...productForm.drivers!];
-                                  newDrivers[idx].phone = formatPhoneInput(e.target.value);
-                                  setProductForm({ ...productForm, drivers: newDrivers });
-                                }} placeholder="+1 (___) ___-____" className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                              </div>
-                              <div>
-                                <label className="text-xs text-muted-foreground mb-1 block">Fecha de Nacimiento</label>
-                                <input type="text" value={driver.dob || ""} onChange={(e) => {
-                                  const newDrivers = [...productForm.drivers!];
-                                  newDrivers[idx].dob = formatDateInput(e.target.value);
-                                  setProductForm({ ...productForm, drivers: newDrivers });
-                                }} placeholder="MM/DD/YYYY" className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                              </div>
-                              <div>
-                                <label className="text-xs text-muted-foreground mb-1 block">Licencia</label>
-                                <input type="text" value={driver.driversLicense || ""} onChange={(e) => {
-                                  const newDrivers = [...productForm.drivers!];
-                                  newDrivers[idx].driversLicense = e.target.value;
-                                  setProductForm({ ...productForm, drivers: newDrivers });
-                                }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Nombre en la póliza</label>
+                        <input type="text" value={productForm.firstName || ""} onChange={(e) => setProductForm({ ...productForm, firstName: e.target.value })} placeholder={addForm.firstName} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
                       </div>
-                    )}
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Apellido en la póliza</label>
+                        <input type="text" value={productForm.lastName || ""} onChange={(e) => setProductForm({ ...productForm, lastName: e.target.value })} placeholder={addForm.lastName} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Número de Póliza</label>
+                        <input type="text" value={productForm.policyNumber || ""} onChange={(e) => setProductForm({ ...productForm, policyNumber: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Compañía</label>
+                        <select
+                          value={productForm.company || ""}
+                          onChange={(e) => setProductForm({ ...productForm, company: e.target.value })}
+                          className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        >
+                          <option value="" disabled>Selecciona una compañía...</option>
+                          {getAllowedCompanies(productForm.category || "Auto").map(comp => (
+                            <option key={comp} value={comp}>{comp}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Prima ($)</label>
+                        <input type="number" value={productForm.premium || ""} onChange={(e) => setProductForm({ ...productForm, premium: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Número de Licencia</label>
+                        <input type="text" value={productForm.licenseNumber || ""} onChange={(e) => setProductForm({ ...productForm, licenseNumber: e.target.value })} placeholder={addForm.driversLicense} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Fecha de Efectividad</label>
+                        <input type="text" value={productForm.effectiveDate || ""} onChange={(e) => setProductForm({ ...productForm, effectiveDate: formatDateInput(e.target.value) })} placeholder="MM/DD/YYYY" className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">Fecha de Vencimiento</label>
+                        <input type="text" value={productForm.expirationDate || ""} onChange={(e) => setProductForm({ ...productForm, expirationDate: formatDateInput(e.target.value) })} placeholder="MM/DD/YYYY" className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
               </Section>
+
 
               <Section title="Adicional">
                 <label className="text-xs text-muted-foreground mb-1 block">Notas de Seguimiento</label>
@@ -1542,11 +1653,126 @@ export default function ClientsPage() {
           </div>
         </div>
       )}
+
+      {/* Add Note Modal */}
+      {showAddNoteModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setShowAddNoteModal(false)}>
+          <div className="glass-card max-w-md w-full p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4">Agregar Nota al Seguimiento</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Comentario / Nota</label>
+                <textarea 
+                  value={noteText} 
+                  onChange={(e) => setNoteText(e.target.value)} 
+                  placeholder="Escribe tu nota aquí..." 
+                  className="w-full h-32 px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setShowAddNoteModal(false)} className="px-4 py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors">
+                Cancelar
+              </button>
+              <button 
+                onClick={() => {
+                  if (!noteText.trim()) {
+                    alert("Debes escribir una nota.");
+                    return;
+                  }
+                  
+                  if (detail) {
+                    const newLog = {
+                      id: Math.random().toString(36).substring(2, 15),
+                      date: new Date().toISOString(),
+                      reason: `[${username || 'Usuario'}] Nota de seguimiento: ${noteText}`
+                    };
+                    updateClient(detail.id, { logs: [...(detail.logs || []), newLog] });
+                  }
+                  setShowAddNoteModal(false);
+                }} 
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                Guardar Nota
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Detail Add Driver Modal */}
+      {showDetailAddDriverModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setShowDetailAddDriverModal(false)}>
+          <div className="glass-card max-w-lg w-full p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4">Agregar Nuevo Conductor</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Nombre</label>
+                  <input type="text" value={newDetailDriver.firstName || ""} onChange={(e) => setNewDetailDriver({ ...newDetailDriver, firstName: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Apellido</label>
+                  <input type="text" value={newDetailDriver.lastName || ""} onChange={(e) => setNewDetailDriver({ ...newDetailDriver, lastName: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="text-xs text-muted-foreground mb-1 block">Teléfono</label>
+                  <input type="text" value={newDetailDriver.phone || ""} onChange={(e) => setNewDetailDriver({ ...newDetailDriver, phone: formatPhoneInput(e.target.value) })} placeholder="+1 (___) ___-____" className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Fecha de Nacimiento</label>
+                  <input type="text" value={newDetailDriver.dob || ""} onChange={(e) => setNewDetailDriver({ ...newDetailDriver, dob: formatDateInput(e.target.value) })} placeholder="MM/DD/YYYY" className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Licencia</label>
+                  <input type="text" value={newDetailDriver.driversLicense || ""} onChange={(e) => setNewDetailDriver({ ...newDetailDriver, driversLicense: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setShowDetailAddDriverModal(false)} className="px-4 py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors">
+                Cancelar
+              </button>
+              <button 
+                onClick={() => {
+                  if (!newDetailDriver.firstName || !newDetailDriver.lastName) {
+                    alert("El nombre y apellido son obligatorios.");
+                    return;
+                  }
+                  
+                  if (detail) {
+                    const d: any = {
+                      id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
+                      firstName: newDetailDriver.firstName,
+                      lastName: newDetailDriver.lastName,
+                      phone: newDetailDriver.phone || "",
+                      dob: newDetailDriver.dob || "",
+                      driversLicense: newDetailDriver.driversLicense || ""
+                    };
+                    const updatedDrivers = [...(detail.drivers || []), d];
+                    updateClient(detail.id, { 
+                      drivers: updatedDrivers,
+                      logs: [...(detail.logs || []), { id: Math.random().toString(36).substring(2, 9), date: new Date().toISOString(), reason: `[${username}] Agregó conductor adicional: ${d.firstName} ${d.lastName}` }]
+                    });
+                  }
+                  setShowDetailAddDriverModal(false);
+                }} 
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                Agregar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </CRMLayout>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <div>
       <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{title}</h3>

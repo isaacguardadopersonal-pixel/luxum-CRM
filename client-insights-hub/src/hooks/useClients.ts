@@ -49,22 +49,37 @@ export function useClients() {
         
         if (allData.length > 0) {
           const mappedData = allData.map(c => {
-            if (c.products && c.drivers) {
-              c.products = c.products.map((p: any) => {
-                 p.drivers = c.drivers
-                   .filter((d: any) => d.product_id === p.id)
-                   .map((d: any) => ({
-                     id: d.id,
-                     firstName: d.first_name,
-                     lastName: d.last_name,
-                     phone: d.phone,
-                     driversLicense: d.drivers_license,
-                     dob: d.dob
-                   }));
-                 return p;
-              });
+            if (c.drivers) {
+              const allFetchedDrivers = c.drivers || [];
+              if (c.products) {
+                c.products = c.products.map((p: any) => {
+                   p.drivers = allFetchedDrivers
+                     .filter((d: any) => d.product_id === p.id)
+                     .map((d: any) => ({
+                       id: d.id,
+                       firstName: d.first_name,
+                       lastName: d.last_name,
+                       phone: d.phone,
+                       driversLicense: d.drivers_license,
+                       dob: d.dob
+                     }));
+                   return p;
+                });
+              }
+              // Asignar los conductores que no tienen producto directamente al cliente
+              c.drivers = allFetchedDrivers
+                 .filter((d: any) => !d.product_id)
+                 .map((d: any) => ({
+                   id: d.id,
+                   firstName: d.first_name,
+                   lastName: d.last_name,
+                   phone: d.phone,
+                   driversLicense: d.drivers_license,
+                   dob: d.dob
+                 }));
+            } else {
+              c.drivers = [];
             }
-            delete c.drivers;
             return c;
           });
           return mappedData as Client[];
@@ -223,8 +238,8 @@ export function useClients() {
               await supabase.from("products").delete().eq("client_id", clientToSync.id);
            }
 
-           // Sincronizar Conductores
-           const driversToSync = clientToSync.products.flatMap(p => 
+           // Sincronizar Conductores (Productos y Cliente)
+           const productDriversToSync = (clientToSync.products || []).flatMap(p => 
               (p.drivers || []).map(d => ({
                  id: d.id,
                  client_id: clientToSync!.id,
@@ -237,10 +252,23 @@ export function useClients() {
               }))
            );
 
-           if (driversToSync.length > 0) {
+           const clientDriversToSync = (clientToSync.drivers || []).map((d: any) => ({
+                 id: d.id,
+                 client_id: clientToSync!.id,
+                 product_id: null,
+                 first_name: d.firstName || d.first_name,
+                 last_name: d.lastName || d.last_name,
+                 phone: d.phone,
+                 drivers_license: d.driversLicense || d.drivers_license || '',
+                 dob: d.dob || ''
+           }));
+
+           const allDriversToSync = [...productDriversToSync, ...clientDriversToSync];
+
+           if (allDriversToSync.length > 0) {
              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-             await supabase.from("add_driver").upsert(driversToSync as any);
-             const driverIds = driversToSync.map(d => d.id);
+             await supabase.from("add_driver").upsert(allDriversToSync as any);
+             const driverIds = allDriversToSync.map(d => d.id);
              await supabase.from("add_driver").delete().eq("client_id", clientToSync.id).not("id", "in", `(${driverIds.map(id => `"${id}"`).join(',')})`);
            } else {
              await supabase.from("add_driver").delete().eq("client_id", clientToSync.id);

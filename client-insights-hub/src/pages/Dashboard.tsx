@@ -31,10 +31,12 @@ type SelectedClientType =
   | { type: "reminder"; client: Client; item: Reminder };
 
 export default function Dashboard() {
-  const { clients, loading } = useClients();
+  const { clients, loading, updateClient } = useClients();
   const { t, locale, setLocale } = useLanguage();
   const { username, signOut } = useAuth();
   const [selectedClient, setSelectedClient] = useState<SelectedClientType | null>(null);
+  const [finalizingReminderNote, setFinalizingReminderNote] = useState("");
+  const [isFinalizingReminder, setIsFinalizingReminder] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showUniquePoliciesModal, setShowUniquePoliciesModal] = useState(false);
   const [showReemplazosModal, setShowReemplazosModal] = useState(false);
@@ -152,10 +154,11 @@ export default function Dashboard() {
       return dobDate.getMonth() === now.getMonth() && dobDate.getDate() === now.getDate();
     });
 
-    // Referrals (all time)
+    // Referrals (all time) - only counting clients with active products
     const byReferrer: Record<string, number> = {};
     clients.forEach((c) => {
-      if (c.referredBy) {
+      const hasActiveProducts = c.products && c.products.some(p => !p.status?.toLowerCase().includes('cancelad'));
+      if (c.referredBy && !/\d/.test(c.referredBy) && hasActiveProducts) {
         byReferrer[c.referredBy] = (byReferrer[c.referredBy] || 0) + 1;
       }
     });
@@ -576,13 +579,74 @@ export default function Dashboard() {
                 <span className="text-muted-foreground">{t("field.phone")}</span>
                 <span className="text-foreground font-medium text-right">{selectedClient.client.workPhone || "—"}</span>
               </div>
+              
+              {selectedClient.type === "reminder" && isFinalizingReminder && (
+                <div className="mt-4 animate-fade-in">
+                  <label className="text-xs font-semibold text-primary mb-1 block">Comentario de Finalización (Obligatorio)</label>
+                  <textarea
+                    value={finalizingReminderNote}
+                    onChange={(e) => setFinalizingReminderNote(e.target.value)}
+                    placeholder="Describe qué sucedió con este recordatorio..."
+                    className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y h-20"
+                  />
+                </div>
+              )}
             </div>
-            <button
-              onClick={() => setSelectedClient(null)}
-              className="mt-6 w-full py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors"
-            >
-              {t("common.close")}
-            </button>
+            
+            {selectedClient.type === "reminder" ? (
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  onClick={() => {
+                    setSelectedClient(null);
+                    setIsFinalizingReminder(false);
+                    setFinalizingReminderNote("");
+                  }}
+                  className="w-full py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors"
+                >
+                  {t("common.close")}
+                </button>
+                {isFinalizingReminder ? (
+                  <button
+                    disabled={!finalizingReminderNote.trim()}
+                    onClick={() => {
+                      if (!finalizingReminderNote.trim()) return;
+                      const c = selectedClient.client;
+                      const rItem = selectedClient.item as Reminder;
+                      const updatedReminders = (c.reminders || []).filter(r => r.id !== rItem.id);
+                      const newLog = {
+                        id: Math.random().toString(36).substring(2, 15),
+                        date: new Date().toISOString(),
+                        reason: `[${username || 'Usuario'}] Finalizó recordatorio: "${rItem.notes}". Comentario: ${finalizingReminderNote}`
+                      };
+                      updateClient(c.id, {
+                        reminders: updatedReminders,
+                        logs: [...(c.logs || []), newLog]
+                      });
+                      setSelectedClient(null);
+                      setIsFinalizingReminder(false);
+                      setFinalizingReminderNote("");
+                    }}
+                    className={`w-full py-2 text-primary-foreground rounded-lg text-sm font-medium transition-colors ${!finalizingReminderNote.trim() ? "bg-primary/50 cursor-not-allowed" : "bg-primary hover:bg-primary/90"}`}
+                  >
+                    Guardar y Finalizar
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setIsFinalizingReminder(true)}
+                    className="w-full py-2 bg-success text-success-foreground rounded-lg text-sm font-medium hover:bg-success/90 transition-colors"
+                  >
+                    Finalizar
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => setSelectedClient(null)}
+                className="mt-6 w-full py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors"
+              >
+                {t("common.close")}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -660,7 +724,7 @@ export default function Dashboard() {
           <div className="glass-card max-w-md w-full p-6 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-foreground mb-4 border-b border-border/50 pb-2">Referidos por {selectedReferral}</h2>
             <div className="space-y-3">
-              {clients.filter(c => c.referredBy === selectedReferral).map(c => (
+              {clients.filter(c => c.referredBy === selectedReferral && c.products?.some(p => !p.status?.toLowerCase().includes('cancelad'))).map(c => (
                 <div key={c.id} className="bg-secondary/50 p-3 rounded-lg flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
                     {c.firstName.charAt(0)}{c.lastName.charAt(0)}

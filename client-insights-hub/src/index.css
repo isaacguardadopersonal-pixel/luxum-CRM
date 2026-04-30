@@ -69,6 +69,22 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
+    /* Anti-extraction security measures */
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  
+  /* Allow text selection inside inputs and textareas so users can type and edit freely */
+  input, textarea {
+    user-select: auto;
+    -webkit-user-select: auto;
+  }
+}
+
+/* Anti-print security measure */
+@media print {
+  body {
+    display: none !important;
   }
 }
 

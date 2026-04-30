@@ -94,6 +94,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
+  // Inactivity Auto-Logout (15 minutes)
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      // 15 minutos = 15 * 60 * 1000 = 900000 ms
+      timeoutId = setTimeout(() => {
+        if (session) {
+          console.warn("Sesión cerrada por inactividad.");
+          supabase.auth.signOut();
+        }
+      }, 900000);
+    };
+
+    if (session) {
+      resetTimer();
+      window.addEventListener('mousemove', resetTimer);
+      window.addEventListener('keydown', resetTimer);
+      window.addEventListener('click', resetTimer);
+      window.addEventListener('scroll', resetTimer);
+    }
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('click', resetTimer);
+      window.removeEventListener('scroll', resetTimer);
+    };
+  }, [session]);
+
+
   const fetchUserRole = async (userId: string) => {
     try {
       const { data, error } = await supabase
