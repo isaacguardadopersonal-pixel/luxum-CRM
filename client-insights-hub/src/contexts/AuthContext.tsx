@@ -152,7 +152,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error("Error signing out:", error);
+    } finally {
+      setSession(null);
+      setUser(null);
+      setRole(null);
+      setUsername(null);
+      localStorage.removeItem('luxum_login_time');
+    }
   };
 
   return (
