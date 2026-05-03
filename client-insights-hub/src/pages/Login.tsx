@@ -111,7 +111,7 @@ export default function Login() {
           <CardDescription className="text-base text-slate-300">
             {step === 'email' 
               ? "Ingresa tu usuario o correo para recibir un código de acceso." 
-              : "Ingresa el código de 6 dígitos enviado a tu correo."}
+              : "Ingresa el código de 8 dígitos enviado a tu correo."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -151,9 +151,9 @@ export default function Login() {
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     className="pl-10 bg-slate-900/50 border-slate-700 text-white placeholder:text-slate-500 tracking-widest text-center text-lg font-mono"
-                    placeholder="000000"
+                    placeholder="00000000"
                     disabled={isLoading}
-                    maxLength={6}
+                    maxLength={8}
                     required
                   />
                 </div>
@@ -169,7 +169,7 @@ export default function Login() {
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Volver
                 </Button>
-                <Button type="submit" className="flex-[2] bg-[#ca9e51] hover:bg-[#b08b45] text-slate-900 font-bold" disabled={isLoading || code.length !== 6}>
+                <Button type="submit" className="flex-[2] bg-[#ca9e51] hover:bg-[#b08b45] text-slate-900 font-bold" disabled={isLoading || code.length !== 8}>
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Verificar
                 </Button>
