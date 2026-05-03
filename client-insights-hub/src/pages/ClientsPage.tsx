@@ -7,6 +7,7 @@ import { getStatusColor, Client, Product, ChangeLog, Reminder, parseCSVRow } fro
 import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, ChevronDown, Phone, Mail, Eye, Upload, Edit, Trash2, RefreshCw } from "lucide-react";
 import * as XLSX from 'xlsx';
 import Papa from "papaparse";
+import { FloatingEmailComposer } from "@/components/FloatingEmailComposer";
 
 export default function ClientsPage() {
   const { clients, loading, addClients, updateClient, deleteClient, pullFromSupabase, deleteAllClients } = useClients();
@@ -31,6 +32,7 @@ export default function ClientsPage() {
   const [showDetailAddDriverModal, setShowDetailAddDriverModal] = useState(false);
   const [newDetailDriver, setNewDetailDriver] = useState<any>({});
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [emailClient, setEmailClient] = useState<Client | null>(null);
   const productCategories = ["Auto", "Home", "Rent", "Comercial", "Commercial auto", "Life"];
   const formatPhoneInput = (value: string): string => {
     let digits = value.replace(/\D/g, "");
@@ -506,9 +508,9 @@ export default function ClientsPage() {
                           </a>
                         )}
                         {client.email && (
-                          <a href={`mailto:${client.email}`} onClick={(e) => e.stopPropagation()} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+                          <button onClick={(e) => { e.stopPropagation(); setEmailClient(client); }} className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors" title="Enviar Correo">
                             <Mail className="w-3.5 h-3.5" />
-                          </a>
+                          </button>
                         )}
                       </div>
                     </td>
@@ -1767,6 +1769,11 @@ export default function ClientsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Email Script Modal */}
+      {emailClient && (
+        <FloatingEmailComposer client={emailClient} onClose={() => setEmailClient(null)} />
       )}
     </CRMLayout>
   );
