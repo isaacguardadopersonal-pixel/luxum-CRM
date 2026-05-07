@@ -33,6 +33,9 @@ export default function ClientsPage() {
   const [newDetailDriver, setNewDetailDriver] = useState<any>({});
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [emailClient, setEmailClient] = useState<Client | null>(null);
+  const [showRenewalModal, setShowRenewalModal] = useState(false);
+  const [renewalProductTarget, setRenewalProductTarget] = useState<Product | null>(null);
+  const [isSameProviderRenewal, setIsSameProviderRenewal] = useState(false);
   const productCategories = ["Auto", "Home", "Rent", "Comercial", "Commercial auto", "Life"];
   const formatPhoneInput = (value: string): string => {
     let digits = value.replace(/\D/g, "");
@@ -81,6 +84,9 @@ export default function ClientsPage() {
   const [importText, setImportText] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({ company: "", dlState: "" });
+  const [activeDetailTab, setActiveDetailTab] = useState<"detalles" | "productos" | "recordatorios" | "modificaciones" | "notas">("detalles");
+  const [showEditNotesModal, setShowEditNotesModal] = useState(false);
+  const [editNotesValue, setEditNotesValue] = useState("");
   const perPage = 15;
 
   const statuses = ["all", "IMPORTANTE", "Website", "Current Customer", "Quoting", "Opportunities", "Not Interested"];
@@ -100,18 +106,18 @@ export default function ClientsPage() {
     reader.onload = (evt) => {
       const bstr = evt.target?.result;
       const wb = XLSX.read(bstr, { type: 'binary' });
-      
+
       const newClients: Client[] = [];
-      
+
       for (const wsname of wb.SheetNames) {
         const ws = wb.Sheets[wsname];
         // raw: false asegura que las fechas (o números con formato) se conviertan a texto asumiendo el formato de Excel
         const data = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }) as Record<string, unknown>[];
-        
+
         const mappedSheet = data.map(rawRow => {
           const rowData: Record<string, string> = {};
           for (const [key, value] of Object.entries(rawRow)) {
-             rowData[key.trim()] = String(value).trim();
+            rowData[key.trim()] = String(value).trim();
           }
           const parsed = parseCSVRow(rowData);
           parsed.created_by = 'unknown';
@@ -121,14 +127,14 @@ export default function ClientsPage() {
           }
           return parsed;
         });
-        
+
         newClients.push(...mappedSheet);
       }
 
       if (newClients.length > 0) {
-          addClients(newClients);
-          setShowImportModal(false);
-          e.target.value = "";
+        addClients(newClients);
+        setShowImportModal(false);
+        e.target.value = "";
       } else {
         alert(t("clients.modal.import_error_empty"));
       }
@@ -138,14 +144,14 @@ export default function ClientsPage() {
 
   const handleImportData = () => {
     if (!importText.trim()) return;
-    
+
     // Papa.parse interceptará comas o tabuladores dinámicamente y emparejará la primera fila a llaves de Obj.
     const result = Papa.parse(importText.trim(), { header: true, skipEmptyLines: true });
-    
+
     const newClients: Client[] = (result.data as Record<string, unknown>[]).map(rawRow => {
       const rowData: Record<string, string> = {};
       for (const [key, value] of Object.entries(rawRow)) {
-         rowData[key.trim()] = String(value).trim();
+        rowData[key.trim()] = String(value).trim();
       }
       const parsed = parseCSVRow(rowData);
       parsed.created_by = 'unknown';
@@ -153,11 +159,11 @@ export default function ClientsPage() {
     });
 
     if (newClients.length > 0) {
-        addClients(newClients);
-        setShowImportModal(false);
-        setImportText("");
+      addClients(newClients);
+      setShowImportModal(false);
+      setImportText("");
     } else {
-        alert(t("clients.modal.import_error_invalid"));
+      alert(t("clients.modal.import_error_invalid"));
     }
   };
 
@@ -267,7 +273,7 @@ export default function ClientsPage() {
         `${c.firstName} ${c.lastName} ${c.products?.[0]?.policyNumber || ""} ${c.email} ${c.products?.[0]?.company || ""} ${c.referredBy || ""}`
           .toLowerCase()
           .includes(search.toLowerCase());
-      const matchesStatus = statusFilter === "all" 
+      const matchesStatus = statusFilter === "all"
         ? !["Opportunities", "Website", "IMPORTANTE"].includes(c.status)
         : c.status === statusFilter;
       const matchesCompany = !filters.company || (c.products && c.products.length > 0 && c.products[0].company === filters.company);
@@ -284,8 +290,8 @@ export default function ClientsPage() {
   const detail = selectedClient ? clients.find(c => c.id === selectedClient) || null : null;
 
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { 
-      all: clients.filter(c => !["Opportunities", "Website", "IMPORTANTE"].includes(c.status)).length 
+    const counts: Record<string, number> = {
+      all: clients.filter(c => !["Opportunities", "Website", "IMPORTANTE"].includes(c.status)).length
     };
     clients.forEach((c) => {
       counts[c.status] = (counts[c.status] || 0) + 1;
@@ -314,9 +320,9 @@ export default function ClientsPage() {
         <div className="flex items-center gap-3">
           {role === 'admin' && (
             <>
-              <button 
+              <button
                 onClick={() => {
-                  if(window.confirm("¿Estás absolutamente seguro de que deseas BORRAR TODOS los clientes? Esta acción eliminará toda la base de datos local y no se puede deshacer.")) {
+                  if (window.confirm("¿Estás absolutamente seguro de que deseas BORRAR TODOS los clientes? Esta acción eliminará toda la base de datos local y no se puede deshacer.")) {
                     deleteAllClients();
                   }
                 }}
@@ -350,12 +356,12 @@ export default function ClientsPage() {
           const label = s === "all" ? t("status.all") : s === "IMPORTANTE" ? "Importante" : s === "Website" ? "Website" : s === "Current Customer" ? t("status.actives") : s === "Quoting" ? t("status.quoting") : s === "Opportunities" ? t("status.opportunities_plural") : t("status.not_interested_plural");
           const colorClass =
             s === "IMPORTANTE" ? "bg-purple-500/15 text-purple-400 border-purple-500/20" :
-            s === "Website" ? "bg-blue-500/15 text-blue-400 border-blue-500/20" :
-            s === "Current Customer" ? "bg-success/15 text-success border-success/20" :
-              s === "Quoting" ? "bg-warning/15 text-warning border-warning/20" :
-                s === "Opportunities" ? "bg-info/15 text-info border-info/20" :
-                  s === "Not Interested" ? "bg-destructive/15 text-destructive border-destructive/20" :
-                    "bg-secondary text-secondary-foreground border-border";
+              s === "Website" ? "bg-blue-500/15 text-blue-400 border-blue-500/20" :
+                s === "Current Customer" ? "bg-success/15 text-success border-success/20" :
+                  s === "Quoting" ? "bg-warning/15 text-warning border-warning/20" :
+                    s === "Opportunities" ? "bg-info/15 text-info border-info/20" :
+                      s === "Not Interested" ? "bg-destructive/15 text-destructive border-destructive/20" :
+                        "bg-secondary text-secondary-foreground border-border";
           return (
             <button
               key={s}
@@ -490,10 +496,10 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        <button 
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if(window.confirm("¿Seguro que deseas eliminar este cliente por completo? Esta acción no se puede deshacer.")) {
+                            if (window.confirm("¿Seguro que deseas eliminar este cliente por completo? Esta acción no se puede deshacer.")) {
                               deleteClient(client.id);
                             }
                           }}
@@ -549,314 +555,440 @@ export default function ClientsPage() {
       {/* Client Detail Modal */}
       {detail && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedClient(null)}>
-          <div className="glass-card max-w-[90vw] md:max-w-6xl w-full p-0 max-h-[90vh] overflow-hidden animate-fade-in flex flex-col md:flex-row" onClick={(e) => e.stopPropagation()}>
-            
-            {/* Left Pane: Main Client Info */}
-            <div className="w-full md:w-2/3 p-6 flex flex-col h-[50vh] md:h-[90vh] overflow-y-auto border-r border-border/50 custom-scrollbar">
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-border/50">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+          <div className="glass-card max-w-[90vw] md:max-w-6xl w-full p-6 max-h-[90vh] overflow-y-auto custom-scrollbar animate-fade-in flex flex-col" onClick={(e) => e.stopPropagation()}>
+
+            {/* 1. INFORMACIÓN PRINCIPAL (Cabecera Global) */}
+            <div className="w-full mb-6 pb-6 border-b border-border/50">
+              <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                {/* Lado Izquierdo: Nombre, Creador y Estado */}
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
                       {detail.firstName} {detail.lastName}
                     </h2>
-                    <p className="text-[10px] text-muted-foreground uppercase mt-0.5">Creado por: {detail.created_by || 'unknown'}</p>
-                  </div>
-                  {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
-                    <button
-                      onClick={() => { setEditingClient(detail.id); setEditForm(detail); setEditReason(""); }}
-                      className="p-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors"
-                      title="Editar cliente"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <button
-                      onClick={() => {
-                        if (role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') {
-                          setShowStatusDropdown(!showStatusDropdown);
-                        }
-                      }}
-                      className={`text-xs font-medium px-4 py-1.5 rounded-full border transition-colors flex items-center gap-1.5 shadow-sm ${getStatusColor(detail.status)} ${(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') ? 'cursor-pointer hover:border-border/80' : 'cursor-not-allowed opacity-80'}`}
-                    >
-                      {detail.status === "Current Customer" ? t("status.active") : 
-                       detail.status === "Quoting" ? t("status.quoting") : 
-                       detail.status === "Opportunities" ? t("status.opportunities") : 
-                       detail.status === "Not Interested" ? t("status.not_interested") : 
-                       detail.status}
-                      {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
-                        <ChevronDown className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
-                      )}
-                    </button>
-                    
-                    {showStatusDropdown && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowStatusDropdown(false)}></div>
-                        <div className="absolute top-full mt-2 right-0 w-44 bg-[#1e2343] border border-border/40 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden z-50 animate-fade-in backdrop-blur-xl">
-                          <div className="p-1">
-                            {[
-                              { val: "Current Customer", label: t("status.active") },
-                              { val: "Quoting", label: t("status.quoting") },
-                              { val: "Opportunities", label: t("status.opportunities") },
-                              { val: "Not Interested", label: t("status.not_interested") },
-                              { val: "IMPORTANTE", label: "Importante" },
-                              { val: "Website", label: "Website" },
-                            ].map(opt => (
-                              <button
-                                key={opt.val}
-                                onClick={() => {
-                                  updateClient(detail.id, { status: opt.val });
-                                  setShowStatusDropdown(false);
-                                }}
-                                className={`w-full text-left px-3 py-2 text-xs font-medium transition-all rounded-lg flex items-center ${detail.status === opt.val ? 'bg-primary/20 text-primary' : 'text-foreground/80 hover:bg-white/5 hover:text-foreground'}`}
-                              >
-                                {opt.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </>
+                    {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
+                      <button
+                        onClick={() => { setEditingClient(detail.id); setEditForm(detail); setEditReason(""); }}
+                        className="p-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors"
+                        title="Editar cliente"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
                     )}
                   </div>
-                  <button onClick={() => setSelectedClient(null)} className="p-1.5 bg-secondary text-muted-foreground rounded-lg hover:bg-secondary/80 hover:text-foreground transition-colors">
-                    <Trash2 className="w-4 h-4 opacity-0 pointer-events-none absolute" /> {/* Placeholder for spacing if needed */}
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <button
+                        onClick={() => {
+                          if (role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') {
+                            setShowStatusDropdown(!showStatusDropdown);
+                          }
+                        }}
+                        className={`text-xs font-medium px-4 py-1.5 rounded-full border transition-colors flex items-center gap-1.5 shadow-sm ${getStatusColor(detail.status)} ${(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') ? 'cursor-pointer hover:border-border/80' : 'cursor-not-allowed opacity-80'}`}
+                      >
+                        {detail.status === "Current Customer" ? t("status.active") :
+                          detail.status === "Quoting" ? t("status.quoting") :
+                            detail.status === "Opportunities" ? t("status.opportunities") :
+                              detail.status === "Not Interested" ? t("status.not_interested") :
+                                detail.status}
+                        {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
+                          <ChevronDown className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
+                        )}
+                      </button>
+
+                      {showStatusDropdown && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setShowStatusDropdown(false)}></div>
+                          <div className="absolute top-full mt-2 left-0 w-44 bg-[#1e2343] border border-border/40 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden z-50 animate-fade-in backdrop-blur-xl">
+                            <div className="p-1">
+                              {[
+                                { val: "Current Customer", label: t("status.active") },
+                                { val: "Quoting", label: t("status.quoting") },
+                                { val: "Opportunities", label: t("status.opportunities") },
+                                { val: "Not Interested", label: t("status.not_interested") },
+                                { val: "IMPORTANTE", label: "Importante" },
+                                { val: "Website", label: "Website" },
+                              ].map(opt => (
+                                <button
+                                  key={opt.val}
+                                  onClick={() => {
+                                    updateClient(detail.id, { status: opt.val });
+                                    setShowStatusDropdown(false);
+                                  }}
+                                  className={`w-full text-left px-3 py-2 text-xs font-medium transition-all rounded-lg flex items-center ${detail.status === opt.val ? 'bg-primary/20 text-primary' : 'text-foreground/80 hover:bg-white/5 hover:text-foreground'}`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Centro: Contacto Primario */}
+                <div className="flex-1 max-w-md bg-secondary/30 p-4 rounded-xl border border-border/40">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <span className="block text-[10px] uppercase text-muted-foreground font-semibold mb-1">Teléfono</span>
+                      <span className="text-sm font-medium text-foreground">{detail.workPhone || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] uppercase text-muted-foreground font-semibold mb-1">Email</span>
+                      <span className="text-sm font-medium text-foreground truncate block">{detail.email || "—"}</span>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <span className="block text-[10px] uppercase text-muted-foreground font-semibold mb-1">Dirección</span>
+                      <span className="text-sm font-medium text-foreground truncate block">
+                        {detail.address ? `${detail.address}, ${detail.city}, ${detail.state} ${detail.zip}` : "—"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botón de Cierre */}
+                <div className="flex self-start justify-end">
+                  <button onClick={() => setSelectedClient(null)} className="p-2 bg-secondary text-muted-foreground rounded-lg hover:bg-secondary/80 hover:text-foreground transition-colors shadow-sm">
                     <span className="text-xl leading-none">&times;</span>
                   </button>
                 </div>
               </div>
-
-              <div className="space-y-6 flex-1">
-                <Section title={t("field.contact")}>
-                  <Field label={t("field.email")} value={detail.email} />
-                  <Field label={t("field.phone")} value={detail.workPhone} />
-                  <Field label={t("field.address")} value={`${detail.address}, ${detail.city}, ${detail.state} ${detail.zip}`} />
-                </Section>
-
-              <Section title={t("field.id_section")}>
-                <Field label={t("field.dob")} value={detail.dob} />
-                <Field label={t("field.license")} value={detail.driversLicense} />
-                <Field label={t("field.dl_state")} value={detail.dlState} />
-                {detail.referredBy && <Field label={t("field.referred_by")} value={detail.referredBy} />}
-              </Section>
-
-              <Section title={
-                <div className="flex justify-between items-center w-full pr-4">
-                  <span>Conductores Adicionales</span>
-                  <button
-                    onClick={(e) => { e.preventDefault(); setNewDetailDriver({}); setShowDetailAddDriverModal(true); }}
-                    className="flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors"
-                  >
-                    + Add Driver
-                  </button>
-                </div>
-              }>
-                {detail.drivers && detail.drivers.length > 0 ? (
-                  <div className="flex flex-col gap-2 mt-2">
-                    {detail.drivers.map((d: any, i: number) => (
-                      <div key={i} className="text-xs p-3 bg-secondary/30 rounded-lg border border-border/50">
-                        <div className="flex justify-between font-medium text-foreground mb-1">
-                          <span>{d.firstName || d.first_name} {d.lastName || d.last_name}</span>
-                          <span>{d.phone}</span>
-                        </div>
-                        <div className="flex justify-between text-muted-foreground">
-                          <span>DOB: {d.dob || '—'}</span>
-                          <span>Lic: {d.driversLicense || d.drivers_license || '—'}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground mt-2">No hay conductores adicionales registrados.</p>
-                )}
-              </Section>
-
-              <Section title={
-                <div className="flex justify-between items-center w-full pr-4">
-                  <span>Productos</span>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setProductForm({
-                        category: "Auto",
-                        firstName: detail.firstName,
-                        lastName: detail.lastName,
-                        licenseNumber: detail.driversLicense,
-                        effectiveDate: "",
-                        expirationDate: "",
-                        drivers: []
-                      });
-                      setShowProductModal(true);
-                    }}
-                    className="flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary rounded-lg text-xs font-medium hover:bg-primary/20 transition-colors"
-                  >
-                    + Add Producto
-                  </button>
-                </div>
-              }>
-                {detail.products && detail.products.length > 0 ? (
-                  <div className="space-y-3 mb-3">
-                    {detail.products.map(prod => (
-                      <div key={prod.id} className={`p-3 rounded-lg border border-border ${prod.status === 'Cancelada por Reemplazo' ? 'bg-secondary/30 opacity-75' : 'bg-secondary/50'}`}>
-                        <div className="flex justify-between items-center mb-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-foreground">{prod.category}</span>
-                            {prod.status === 'Cancelada por Reemplazo' && (
-                              <span className="px-1.5 py-0.5 text-[10px] font-medium bg-destructive/15 text-destructive rounded-sm">Cancelada</span>
-                            )}
-                          </div>
-                          <div className="flex gap-1 items-center">
-                            <span className="text-xs text-muted-foreground mr-1">{prod.company}</span>
-                            {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  if (window.confirm("¿Estás seguro de que deseas eliminar este producto? Esta acción no se puede deshacer.")) {
-                                    const updatedProducts = detail.products?.filter(p => p.id !== prod.id) || [];
-                                    updateClient(detail.id, { 
-                                      products: updatedProducts,
-                                      logs: [...(detail.logs || []), { id: Math.random().toString(36).substring(2, 9), date: new Date().toISOString(), reason: `[${username}] Eliminó producto: ${prod.category} - ${prod.policyNumber}` }]
-                                    });
-                                  }
-                                }}
-                                className="p-1.5 text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                                title="Eliminar Producto"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  setProductForm(prod);
-                                  setShowProductModal(true);
-                                }}
-                                className="p-1.5 text-primary hover:bg-primary/10 rounded-md transition-colors"
-                                title="Editar Producto"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (!prod.status || prod.status === 'Activa') && (
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  setProductForm({
-                                    ...prod,
-                                    id: "",
-                                    id_poliza_padre: prod.id,
-                                    tipo_movimiento: "Reemplazo",
-                                    createdAt: new Date().toISOString()
-                                  });
-                                  setShowProductModal(true);
-                                }}
-                                className="p-1.5 text-warning hover:bg-warning/10 rounded-md transition-colors"
-                                title="Reemplazar Producto"
-                              >
-                                <RefreshCw className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 gap-2 mt-2">
-                          <Field label="Póliza" value={prod.policyNumber} />
-                          <Field label="Prima" value={prod.premium ? `$${prod.premium.toLocaleString()}` : "—"} />
-                          <Field label="Titular" value={`${prod.firstName} ${prod.lastName}`} />
-                          <Field label="Licencia" value={prod.licenseNumber} />
-                          <Field label="Vigencia" value={(prod.effectiveDate || prod.expirationDate) ? `${prod.effectiveDate || '—'} → ${prod.expirationDate || '—'}` : "—"} />
-                        </div>
-                        {prod.drivers && prod.drivers.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-border/50">
-                            <span className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">Conductores ({prod.drivers.length})</span>
-                            <div className="flex flex-col gap-1">
-                              {prod.drivers.map((d, i) => (
-                                <div key={i} className="text-xs text-foreground flex justify-between">
-                                  <span>{d.firstName} {d.lastName}</span>
-                                  <span className="text-muted-foreground">{d.phone}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground mb-3">No hay productos adicionales registrados.</p>
-                )}
-              </Section>
-
-              </div>
             </div>
 
-            {/* Right Pane: Notes, Reminders, Logs */}
-            <div className="w-full md:w-1/3 p-6 bg-secondary/20 flex flex-col h-[40vh] md:h-[90vh] overflow-y-auto custom-scrollbar">
-              <h3 className="text-sm font-bold text-foreground mb-4 uppercase tracking-wider text-primary">Seguimiento</h3>
-              <div className="space-y-6">
-                <Section title="Recordatorios / Agenda">
-                  {detail.reminders && detail.reminders.length > 0 ? (
-                    <div className="space-y-3 mb-3">
-                      {detail.reminders.map((r, i) => (
-                        <div key={i} className="p-3 bg-secondary/50 rounded-lg border border-border">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm font-bold text-foreground">Agendado para: <span className="text-primary">{r.date}</span></span>
-                            <span className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString()}</span>
-                          </div>
-                          <p className="text-sm text-foreground mt-2">{r.notes}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground mb-3">No hay recordatorios agendados.</p>
-                  )}
-                  <button
-                    onClick={() => {
-                      setReminderForm({ date: "", notes: "" });
-                      setShowReminderModal(true);
-                    }}
-                    className="w-full py-2 bg-primary/10 text-primary border border-primary/20 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors"
-                  >
-                    + Agendar Recordatorio
-                  </button>
-                </Section>
+            {/* 2. NAVEGACIÓN POR PESTAÑAS (Tabs tipo Píldora) */}
+            <div className="flex flex-wrap mt-8 mb-6 gap-4 pb-3 pt-2 px-2 w-full justify-center">
+              {[
+                { id: "detalles", label: "Detalles" },
+                { id: "productos", label: "Productos" },
+                { id: "recordatorios", label: "Recordatorios" },
+                { id: "modificaciones", label: "Modificaciones" },
+                { id: "notas", label: "Notas" },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveDetailTab(tab.id as any)}
+                  className={`px-8 py-3 rounded-full text-sm md:text-base font-bold transition-all border whitespace-nowrap flex items-center justify-center ${activeDetailTab === tab.id
+                    ? "bg-[#fca311] text-[#0f172a] border-[#fca311] shadow-[0_4px_15px_-3px_rgba(252,163,17,0.5)] scale-105"
+                    : "bg-[#1e2343] text-white/80 border-white/10 hover:bg-[#2a3055] hover:text-white hover:border-white/30 hover:scale-105"
+                    }`}
+                  style={{ minWidth: '140px' }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-                {detail.notes && (
-                  <Section title={t("field.additional")}>
-                    <Field label={t("field.notes")} value={detail.notes} />
-                  </Section>
-                )}
+            {/* 3. CONTENIDO DE LA PESTAÑA */}
+            <div className="flex-1 min-h-[400px] bg-secondary/10 rounded-2xl border border-border/20 relative">
 
-                <Section title="Historial de Modificaciones">
-                  {detail.logs && detail.logs.length > 0 ? (
-                    <div className="space-y-3 mb-3">
-                      {detail.logs.slice().reverse().map(log => (
-                        <div key={log.id} className="p-3 bg-secondary/50 rounded-lg border border-border text-xs">
-                          <div className="flex justify-between items-start mb-1">
-                            <span className="font-semibold text-foreground text-primary">Edición</span>
-                            <span className="text-muted-foreground">{new Date(log.date).toLocaleString()}</span>
-                          </div>
-                          <p className="text-foreground">{log.reason}</p>
-                        </div>
-                      ))}
+              {/* === MÓDULO 1: DETALLES === */}
+              {activeDetailTab === "detalles" && (
+                <div className="p-6 h-full flex flex-col animate-fade-in">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-sm font-bold text-primary uppercase tracking-wider">Información Detallada</h3>
+                    <button
+                      onClick={(e) => { e.preventDefault(); setNewDetailDriver({}); setShowDetailAddDriverModal(true); }}
+                      className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 hover:scale-105"
+                    >
+                      + Add Driver
+                    </button>
+                  </div>
+
+                  <div className="space-y-6 flex-1">
+                    <div className="flex flex-col border border-border/30 rounded-xl overflow-hidden bg-secondary/10 shadow-sm">
+                      <div className="flex justify-between items-center p-4 border-b border-border/30 hover:bg-secondary/30 transition-colors">
+                        <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{t("field.dob")}</span>
+                        <span className="text-base font-medium text-foreground">{detail.dob || "—"}</span>
+                      </div>
+                      <div className="flex justify-between items-center p-4 border-b border-border/30 hover:bg-secondary/30 transition-colors">
+                        <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{t("field.license")}</span>
+                        <span className="text-base font-medium text-foreground">{detail.driversLicense || "—"}</span>
+                      </div>
+                      <div className="flex justify-between items-center p-4 border-b border-border/30 hover:bg-secondary/30 transition-colors">
+                        <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{t("field.dl_state")}</span>
+                        <span className="text-base font-medium text-foreground">{detail.dlState || "—"}</span>
+                      </div>
+                      <div className="flex justify-between items-center p-4 hover:bg-secondary/30 transition-colors">
+                        <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{t("field.referred_by")}</span>
+                        <span className="text-base font-medium text-foreground">{detail.referredBy || "—"}</span>
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground mb-3">No hay historial de cambios registrado.</p>
-                  )}
-                  <div className="flex justify-between items-center mb-4">
+
+                    {detail.drivers && detail.drivers.length > 0 && (
+                      <div className="pt-4 border-t border-border/30">
+                        <span className="text-sm text-foreground mb-3 block font-semibold">Conductores Adicionales:</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {detail.drivers.map((d: any, i: number) => (
+                            <div key={i} className="p-4 bg-secondary/40 rounded-xl border border-border/50 shadow-sm">
+                              <div className="flex justify-between font-bold text-foreground mb-2">
+                                <span>{d.firstName || d.first_name} {d.lastName || d.last_name}</span>
+                              </div>
+                              <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                                <span>Tel: {d.phone || '—'}</span>
+                                <span>DOB: {d.dob || '—'}</span>
+                                <span>Lic: {d.driversLicense || d.drivers_license || '—'}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* === MÓDULO: NOTAS === */}
+              {activeDetailTab === "notas" && (
+                <div className="p-6 h-full flex flex-col animate-fade-in">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-sm font-bold text-primary uppercase tracking-wider">Notas del Cliente</h3>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setEditNotesValue(detail.notes || "");
+                        setShowEditNotesModal(true);
+                      }}
+                      className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 hover:scale-105"
+                    >
+                      <Edit className="w-3.5 h-3.5" /> Editar Notas
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+                    {detail.notes ? (
+                      <p className="text-sm text-foreground bg-secondary/30 p-5 rounded-xl border border-border/30 whitespace-pre-wrap leading-relaxed shadow-inner">
+                        {detail.notes}
+                      </p>
+                    ) : (
+                      <div className="h-full flex items-center justify-center p-10 bg-secondary/20 rounded-xl border border-border/20 border-dashed">
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-foreground mb-1">Este cliente no tiene notas.</p>
+                          <p className="text-xs text-muted-foreground">Usa el botón "Editar Notas" para agregar información adicional importante.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* === MÓDULO 2: PRODUCTOS === */}
+              {activeDetailTab === "productos" && (
+                <div className="p-6 h-full flex flex-col animate-fade-in">
+                  <div className="flex justify-between items-center mb-6 shrink-0">
+                    <h3 className="text-sm font-bold text-primary uppercase tracking-wider">Catálogo de Productos</h3>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setProductForm({
+                          category: "Auto",
+                          firstName: detail.firstName,
+                          lastName: detail.lastName,
+                          licenseNumber: detail.driversLicense,
+                          effectiveDate: "",
+                          expirationDate: "",
+                          drivers: []
+                        });
+                        setShowProductModal(true);
+                      }}
+                      className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 hover:scale-105"
+                    >
+                      + Agregar Producto
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
+                    {detail.products && detail.products.length > 0 ? (
+                      detail.products.map(prod => (
+                        <div key={prod.id} className={`p-4 rounded-xl border ${prod.status === 'Cancelada por Reemplazo' || prod.status === 'Renovada' || prod.status === 'Inactiva' ? 'bg-secondary/30 border-border/30 opacity-75' : 'bg-secondary/80 border-border/80 shadow-md'}`}>
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-3">
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-base font-bold text-foreground">{prod.category}</span>
+                              <span className="text-sm text-muted-foreground font-mono bg-background/50 px-2 py-1 rounded-md">#{prod.policyNumber || 'N/A'}</span>
+                              {prod.status === 'Cancelada por Reemplazo' && (
+                                <span className="px-2 py-1 text-xs font-bold bg-destructive/15 text-destructive rounded-md uppercase tracking-wider">Cancelada</span>
+                              )}
+                              {prod.status === 'Inactiva' && (
+                                <span className="px-2 py-1 text-xs font-bold bg-destructive/15 text-destructive rounded-md uppercase tracking-wider">Inactiva</span>
+                              )}
+                              {prod.status === 'Renovada' && (
+                                <span className="px-2 py-1 text-xs font-bold bg-info/15 text-info rounded-md uppercase tracking-wider">Renovada</span>
+                              )}
+                              {(!prod.status || prod.status === 'Activa') && (
+                                <span className="px-2 py-1 text-xs font-bold bg-success/15 text-success rounded-md uppercase tracking-wider">Vigente</span>
+                              )}
+                            </div>
+                            <span className="text-lg font-bold text-primary">{prod.premium ? `$${prod.premium.toLocaleString()}` : "—"}</span>
+                          </div>
+
+                          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mt-3 pt-3 border-t border-border/30 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm text-foreground/80">
+                              <div><span className="text-xs text-muted-foreground block mb-0.5">Compañía</span><span className="font-medium">{prod.company}</span></div>
+                              <div><span className="text-xs text-muted-foreground block mb-0.5">Vigencia</span><span className="font-medium">{prod.expirationDate || '—'}</span></div>
+                              <div><span className="text-xs text-muted-foreground block mb-0.5">Titular</span><span className="font-medium">{prod.firstName} {prod.lastName}</span></div>
+                            </div>
+
+                            <div className="flex gap-2 items-center w-full md:w-auto justify-end">
+                              {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (!prod.status || prod.status === 'Activa') && (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setRenewalProductTarget(prod);
+                                      setShowRenewalModal(true);
+                                    }}
+                                    className="px-3 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-colors"
+                                  >
+                                    Renovar
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setProductForm({
+                                        ...prod,
+                                        id: "",
+                                        id_poliza_padre: prod.id,
+                                        tipo_movimiento: "Reemplazo",
+                                        createdAt: new Date().toISOString()
+                                      });
+                                      setIsSameProviderRenewal(false);
+                                      setShowProductModal(true);
+                                    }}
+                                    className="px-3 py-1.5 bg-warning/10 text-warning text-xs font-bold rounded-lg hover:bg-warning/20 transition-colors"
+                                  >
+                                    Reemplazar
+                                  </button>
+                                </>
+                              )}
+                              {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setProductForm(prod);
+                                    setIsSameProviderRenewal(false);
+                                    setShowProductModal(true);
+                                  }}
+                                  className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors bg-secondary/50"
+                                  title="Editar"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                              )}
+                              {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    if (window.confirm("¿Estás seguro de que deseas eliminar este producto?")) {
+                                      const updatedProducts = detail.products?.filter(p => p.id !== prod.id) || [];
+                                      updateClient(detail.id, {
+                                        products: updatedProducts,
+                                        logs: [...(detail.logs || []), { id: Math.random().toString(36).substring(2, 9), date: new Date().toISOString(), reason: `[${username}] Eliminó producto: ${prod.category} - ${prod.policyNumber}` }]
+                                      });
+                                    }
+                                  }}
+                                  className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors bg-secondary/50"
+                                  title="Eliminar"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="h-full flex items-center justify-center p-10 bg-secondary/20 rounded-xl border border-border/20 border-dashed">
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-foreground mb-1">Aún no hay productos registrados.</p>
+                          <p className="text-xs text-muted-foreground">Haz clic en "Agregar Producto" para comenzar.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* === MÓDULO 3: RECORDATORIOS === */}
+              {activeDetailTab === "recordatorios" && (
+                <div className="p-6 h-full flex flex-col animate-fade-in">
+                  <div className="flex justify-between items-center mb-6 shrink-0">
+                    <h3 className="text-sm font-bold text-primary uppercase tracking-wider">Agenda y Recordatorios</h3>
+                    <button
+                      onClick={() => {
+                        setReminderForm({ date: "", notes: "" });
+                        setShowReminderModal(true);
+                      }}
+                      className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 hover:scale-105"
+                    >
+                      + Agendar Nuevo
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
+                    {detail.reminders && detail.reminders.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {detail.reminders.map((r, i) => (
+                          <div key={i} className="p-4 bg-secondary/50 rounded-xl border border-border shadow-sm">
+                            <div className="flex justify-between items-center mb-2 pb-2 border-b border-border/30">
+                              <span className="text-sm font-bold text-foreground flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                                Para: <span className="text-primary">{r.date}</span>
+                              </span>
+                              <span className="text-xs text-muted-foreground">Creado: {new Date(r.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <p className="text-sm text-foreground/90 mt-2 leading-relaxed">{r.notes}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="h-full flex items-center justify-center p-10 bg-secondary/20 rounded-xl border border-border/20 border-dashed">
+                        <p className="text-sm text-muted-foreground">No hay recordatorios agendados para este cliente.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* === MÓDULO 4: MODIFICACIONES === */}
+              {activeDetailTab === "modificaciones" && (
+                <div className="p-6 h-full flex flex-col animate-fade-in">
+                  <div className="flex justify-between items-center mb-6 shrink-0">
+                    <div>
+                      <h3 className="text-sm font-bold text-primary uppercase tracking-wider">Historial de Cambios</h3>
+                      <p className="text-xs text-muted-foreground mt-1">Registros de actividad para este cliente. Creado por: {detail.created_by || 'unknown'}</p>
+                    </div>
                     <button
                       onClick={() => {
                         setNoteText("");
                         setShowAddNoteModal(true);
                       }}
-                      className="w-full py-2 bg-primary/10 text-primary border border-primary/20 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors"
+                      className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 hover:scale-105"
                     >
-                      + Agregar Nota
+                      + Agregar Registro
                     </button>
                   </div>
-                </Section>
-              </div>
+                  <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                    {detail.logs && detail.logs.length > 0 ? (
+                      detail.logs.slice().reverse().map(log => (
+                        <div key={log.id} className="p-4 bg-secondary/30 rounded-xl border border-border flex flex-col md:flex-row md:items-start gap-4">
+                          <div className="shrink-0 bg-background/50 px-3 py-1.5 rounded-lg border border-border/50 text-center w-auto md:w-32">
+                            <span className="text-[10px] uppercase text-muted-foreground font-bold block mb-0.5">Fecha</span>
+                            <span className="text-xs font-mono text-foreground">{new Date(log.date).toLocaleDateString()}</span>
+                            <span className="text-[10px] font-mono text-muted-foreground block mt-0.5">{new Date(log.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          <div className="flex-1 pt-1">
+                            <p className="text-sm text-foreground/90">{log.reason}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="h-full flex items-center justify-center p-10 bg-secondary/20 rounded-xl border border-border/20 border-dashed">
+                        <p className="text-sm text-muted-foreground">No hay historial de cambios registrado.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1343,22 +1475,113 @@ export default function ClientsPage() {
         </div>
       )}
 
+      {/* Edit Notes Modal */}
+      {showEditNotesModal && detail && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setShowEditNotesModal(false)}>
+          <div className="glass-card max-w-2xl w-full p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4">Editar Notas del Cliente</h2>
+            <textarea
+              value={editNotesValue}
+              onChange={(e) => setEditNotesValue(e.target.value)}
+              placeholder="Añade notas o información importante sobre el cliente..."
+              className="w-full h-64 p-4 bg-secondary rounded-xl text-sm text-foreground border border-border/50 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-y mb-6 leading-relaxed"
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowEditNotesModal(false)}
+                className="px-4 py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  updateClient(detail.id, { notes: editNotesValue });
+                  setShowEditNotesModal(false);
+                }}
+                className="px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:opacity-90 transition-opacity shadow-md shadow-primary/20"
+              >
+                Guardar Notas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Renewal Modal */}
+      {showRenewalModal && renewalProductTarget && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setShowRenewalModal(false)}>
+          <div className="glass-card max-w-sm w-full p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4">Tipo de Renovación</h2>
+            <p className="text-sm text-muted-foreground mb-6">Selecciona cómo deseas renovar el producto <strong>{renewalProductTarget.category}</strong> de {renewalProductTarget.company}.</p>
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                onClick={() => {
+                  setProductForm({
+                    ...renewalProductTarget,
+                    id: "",
+                    id_poliza_padre: renewalProductTarget.id,
+                    tipo_movimiento: "Renovación",
+                    createdAt: new Date().toISOString(),
+                    effectiveDate: "",
+                    expirationDate: ""
+                  });
+                  setIsSameProviderRenewal(true);
+                  setShowRenewalModal(false);
+                  setShowProductModal(true);
+                }}
+                className="w-full px-4 py-3 bg-secondary text-foreground hover:bg-secondary/80 border border-border rounded-lg text-sm font-medium transition-colors"
+              >
+                Mismo proveedor
+              </button>
+              <button
+                onClick={() => {
+                  setProductForm({
+                    id: "",
+                    id_poliza_padre: renewalProductTarget.id,
+                    tipo_movimiento: "Renovación",
+                    createdAt: new Date().toISOString(),
+                    category: renewalProductTarget.category,
+                    firstName: renewalProductTarget.firstName,
+                    lastName: renewalProductTarget.lastName,
+                    licenseNumber: renewalProductTarget.licenseNumber
+                  });
+                  setIsSameProviderRenewal(false);
+                  setShowRenewalModal(false);
+                  setShowProductModal(true);
+                }}
+                className="w-full px-4 py-3 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 rounded-lg text-sm font-medium transition-colors"
+              >
+                Proveedor nuevo
+              </button>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button onClick={() => setShowRenewalModal(false)} className="text-sm text-muted-foreground hover:text-foreground">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Product Modal */}
       {showProductModal && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setShowProductModal(false)}>
           <div className="glass-card max-w-lg w-full p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-foreground mb-4">Agregar Nuevo Producto</h2>
+            <h2 className="text-lg font-bold text-foreground mb-4">
+              {isSameProviderRenewal ? "Renovación de Producto" : "Agregar Nuevo Producto"}
+            </h2>
             <div className="space-y-4">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Categoría de Producto</label>
                 <select
                   value={productForm.category || "Auto"}
+                  disabled={isSameProviderRenewal}
                   onChange={(e) => {
                     const newCat = e.target.value;
                     const allowed = getAllowedCompanies(newCat);
                     setProductForm({ ...productForm, category: newCat, company: allowed.includes(productForm.company || "") ? productForm.company : "" });
                   }}
-                  className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
                 >
                   {productCategories.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
@@ -1369,25 +1592,26 @@ export default function ClientsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Nombre</label>
-                  <input type="text" value={productForm.firstName || ""} onChange={(e) => setProductForm({ ...productForm, firstName: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                  <input type="text" disabled={isSameProviderRenewal} value={productForm.firstName || ""} onChange={(e) => setProductForm({ ...productForm, firstName: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Apellido</label>
-                  <input type="text" value={productForm.lastName || ""} onChange={(e) => setProductForm({ ...productForm, lastName: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                  <input type="text" disabled={isSameProviderRenewal} value={productForm.lastName || ""} onChange={(e) => setProductForm({ ...productForm, lastName: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Número de Póliza</label>
-                  <input type="text" value={productForm.policyNumber || ""} onChange={(e) => setProductForm({ ...productForm, policyNumber: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                  <input type="text" disabled={isSameProviderRenewal} value={productForm.policyNumber || ""} onChange={(e) => setProductForm({ ...productForm, policyNumber: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Compañía</label>
                   <select
                     value={productForm.company || ""}
+                    disabled={isSameProviderRenewal}
                     onChange={(e) => setProductForm({ ...productForm, company: e.target.value })}
-                    className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
                   >
                     <option value="" disabled>Selecciona una compañía...</option>
                     {getAllowedCompanies(productForm.category || "Auto").map(comp => (
@@ -1404,7 +1628,7 @@ export default function ClientsPage() {
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Número de Licencia</label>
-                  <input type="text" value={productForm.licenseNumber || ""} onChange={(e) => setProductForm({ ...productForm, licenseNumber: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                  <input type="text" disabled={isSameProviderRenewal} value={productForm.licenseNumber || ""} onChange={(e) => setProductForm({ ...productForm, licenseNumber: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50" />
                 </div>
               </div>
 
@@ -1423,71 +1647,75 @@ export default function ClientsPage() {
               <div className="pt-2 border-t border-border/50">
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-semibold text-muted-foreground uppercase">Conductores Adicionales</label>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      const newDrivers = [...(productForm.drivers || []), { id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36), firstName: "", lastName: "", phone: "" }];
-                      setProductForm({ ...productForm, drivers: newDrivers });
-                    }}
-                    className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium hover:bg-primary/20 transition-colors"
-                  >
-                    <Plus className="w-3 h-3" /> Add Driver
-                  </button>
+                  {!isSameProviderRenewal && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const newDrivers = [...(productForm.drivers || []), { id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36), firstName: "", lastName: "", phone: "" }];
+                        setProductForm({ ...productForm, drivers: newDrivers });
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium hover:bg-primary/20 transition-colors"
+                    >
+                      <Plus className="w-3 h-3" /> Add Driver
+                    </button>
+                  )}
                 </div>
                 {productForm.drivers && productForm.drivers.length > 0 && (
                   <div className="space-y-3 mt-3">
                     {productForm.drivers.map((driver, idx) => (
                       <div key={idx} className="relative p-3 bg-secondary/30 rounded-lg border border-border/50">
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            const newDrivers = productForm.drivers!.filter((_, i) => i !== idx);
-                            setProductForm({ ...productForm, drivers: newDrivers });
-                          }}
-                          className="absolute right-2 top-2 p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {!isSameProviderRenewal && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const newDrivers = productForm.drivers!.filter((_, i) => i !== idx);
+                              setProductForm({ ...productForm, drivers: newDrivers });
+                            }}
+                            className="absolute right-2 top-2 p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                         <div className="grid grid-cols-2 gap-3 pr-8">
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Nombre</label>
-                            <input type="text" value={driver.firstName} onChange={(e) => {
+                            <input type="text" disabled={isSameProviderRenewal} value={driver.firstName} onChange={(e) => {
                               const newDrivers = [...productForm.drivers!];
                               newDrivers[idx].firstName = e.target.value;
                               setProductForm({ ...productForm, drivers: newDrivers });
-                            }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                            }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50" />
                           </div>
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Apellido</label>
-                            <input type="text" value={driver.lastName} onChange={(e) => {
+                            <input type="text" disabled={isSameProviderRenewal} value={driver.lastName} onChange={(e) => {
                               const newDrivers = [...productForm.drivers!];
                               newDrivers[idx].lastName = e.target.value;
                               setProductForm({ ...productForm, drivers: newDrivers });
-                            }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                            }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50" />
                           </div>
                           <div className="col-span-2">
                             <label className="text-xs text-muted-foreground mb-1 block">Teléfono</label>
-                            <input type="text" value={driver.phone} onChange={(e) => {
+                            <input type="text" disabled={isSameProviderRenewal} value={driver.phone} onChange={(e) => {
                               const newDrivers = [...productForm.drivers!];
                               newDrivers[idx].phone = formatPhoneInput(e.target.value);
                               setProductForm({ ...productForm, drivers: newDrivers });
-                            }} placeholder="+1 (___) ___-____" className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                            }} placeholder="+1 (___) ___-____" className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50" />
                           </div>
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Fecha de Nacimiento</label>
-                            <input type="text" value={driver.dob || ""} onChange={(e) => {
+                            <input type="text" disabled={isSameProviderRenewal} value={driver.dob || ""} onChange={(e) => {
                               const newDrivers = [...productForm.drivers!];
                               newDrivers[idx].dob = formatDateInput(e.target.value);
                               setProductForm({ ...productForm, drivers: newDrivers });
-                            }} placeholder="MM/DD/YYYY" className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                            }} placeholder="MM/DD/YYYY" className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50" />
                           </div>
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Licencia</label>
-                            <input type="text" value={driver.driversLicense || ""} onChange={(e) => {
+                            <input type="text" disabled={isSameProviderRenewal} value={driver.driversLicense || ""} onChange={(e) => {
                               const newDrivers = [...productForm.drivers!];
                               newDrivers[idx].driversLicense = e.target.value;
                               setProductForm({ ...productForm, drivers: newDrivers });
-                            }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
+                            }} className="w-full px-3 py-2 bg-background rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50" />
                           </div>
                         </div>
                       </div>
@@ -1514,7 +1742,7 @@ export default function ClientsPage() {
                       const oldDate = oldProduct.createdAt ? new Date(oldProduct.createdAt) : new Date();
                       const now = new Date();
                       const diffDays = Math.ceil(Math.abs(now.getTime() - oldDate.getTime()) / (1000 * 60 * 60 * 24));
-                      
+
                       if (diffDays <= 180) {
                         movimiento = "Reemplazo";
                       } else {
@@ -1549,7 +1777,8 @@ export default function ClientsPage() {
                   if (editingClient) {
                     let existingProducts = editForm.products || [];
                     if (isNewReplacement) {
-                      existingProducts = existingProducts.map(p => p.id === productForm.id_poliza_padre ? { ...p, status: "Cancelada por Reemplazo" } : p);
+                      const cancelStatus = productForm.tipo_movimiento === "Renovación" ? "Renovada" : (movimiento === "Venta Nueva" ? "Inactiva" : "Cancelada por Reemplazo");
+                      existingProducts = existingProducts.map(p => p.id === productForm.id_poliza_padre ? { ...p, status: cancelStatus } : p);
                     }
 
                     let updatedProducts;
@@ -1563,7 +1792,8 @@ export default function ClientsPage() {
                   } else if (detail) {
                     let existingProducts = detail.products || [];
                     if (isNewReplacement) {
-                      existingProducts = existingProducts.map(p => p.id === productForm.id_poliza_padre ? { ...p, status: "Cancelada por Reemplazo" } : p);
+                      const cancelStatus = productForm.tipo_movimiento === "Renovación" ? "Renovada" : (movimiento === "Venta Nueva" ? "Inactiva" : "Cancelada por Reemplazo");
+                      existingProducts = existingProducts.map(p => p.id === productForm.id_poliza_padre ? { ...p, status: cancelStatus } : p);
                     }
 
                     let updatedProducts;
@@ -1600,53 +1830,53 @@ export default function ClientsPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Fecha (MM/DD/YYYY) <span className="text-destructive">*</span></label>
-                <input 
-                  type="text" 
-                  value={reminderForm.date || ""} 
-                  onChange={(e) => setReminderForm({ ...reminderForm, date: formatDateInput(e.target.value) })} 
-                  placeholder="04/15/2026" 
-                  className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" 
+                <input
+                  type="text"
+                  value={reminderForm.date || ""}
+                  onChange={(e) => setReminderForm({ ...reminderForm, date: formatDateInput(e.target.value) })}
+                  placeholder="04/15/2026"
+                  className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
                 />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Notas <span className="text-destructive">*</span></label>
-                <textarea 
-                  value={reminderForm.notes || ""} 
-                  onChange={(e) => setReminderForm({ ...reminderForm, notes: e.target.value })} 
-                  placeholder="Llamar para renovar póliza..." 
-                  className="w-full h-24 px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none" 
+                <textarea
+                  value={reminderForm.notes || ""}
+                  onChange={(e) => setReminderForm({ ...reminderForm, notes: e.target.value })}
+                  placeholder="Llamar para renovar póliza..."
+                  className="w-full h-24 px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
                 />
               </div>
             </div>
-            
+
             <div className="flex gap-3 justify-end mt-6">
-              <button 
-                onClick={() => setShowReminderModal(false)} 
+              <button
+                onClick={() => setShowReminderModal(false)}
                 className="px-4 py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors"
-               >
+              >
                 Cancelar
               </button>
-              <button 
+              <button
                 onClick={() => {
                   if (!reminderForm.date || !reminderForm.notes) {
                     alert("Debes llenar la fecha y las notas.");
                     return;
                   }
-                  
+
                   const newReminder: Reminder = {
                     id: Math.random().toString(36).substring(2, 15),
                     date: reminderForm.date,
                     notes: reminderForm.notes,
                     createdAt: new Date().toISOString()
                   };
-                  
+
                   if (detail) {
                     const existingReminders = detail.reminders || [];
                     const updatedReminders = [...existingReminders, newReminder];
                     updateClient(detail.id, { reminders: updatedReminders });
                   }
                   setShowReminderModal(false);
-                }} 
+                }}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 Agendar
@@ -1664,10 +1894,10 @@ export default function ClientsPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Comentario / Nota</label>
-                <textarea 
-                  value={noteText} 
-                  onChange={(e) => setNoteText(e.target.value)} 
-                  placeholder="Escribe tu nota aquí..." 
+                <textarea
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="Escribe tu nota aquí..."
                   className="w-full h-32 px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 resize-y"
                 />
               </div>
@@ -1676,13 +1906,13 @@ export default function ClientsPage() {
               <button onClick={() => setShowAddNoteModal(false)} className="px-4 py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors">
                 Cancelar
               </button>
-              <button 
+              <button
                 onClick={() => {
                   if (!noteText.trim()) {
                     alert("Debes escribir una nota.");
                     return;
                   }
-                  
+
                   if (detail) {
                     const newLog = {
                       id: Math.random().toString(36).substring(2, 15),
@@ -1692,7 +1922,7 @@ export default function ClientsPage() {
                     updateClient(detail.id, { logs: [...(detail.logs || []), newLog] });
                   }
                   setShowAddNoteModal(false);
-                }} 
+                }}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 Guardar Nota
@@ -1738,13 +1968,13 @@ export default function ClientsPage() {
               <button onClick={() => setShowDetailAddDriverModal(false)} className="px-4 py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors">
                 Cancelar
               </button>
-              <button 
+              <button
                 onClick={() => {
                   if (!newDetailDriver.firstName || !newDetailDriver.lastName) {
                     alert("El nombre y apellido son obligatorios.");
                     return;
                   }
-                  
+
                   if (detail) {
                     const d: any = {
                       id: Math.random().toString(36).substring(2, 15) + Date.now().toString(36),
@@ -1755,13 +1985,13 @@ export default function ClientsPage() {
                       driversLicense: newDetailDriver.driversLicense || ""
                     };
                     const updatedDrivers = [...(detail.drivers || []), d];
-                    updateClient(detail.id, { 
+                    updateClient(detail.id, {
                       drivers: updatedDrivers,
                       logs: [...(detail.logs || []), { id: Math.random().toString(36).substring(2, 9), date: new Date().toISOString(), reason: `[${username}] Agregó conductor adicional: ${d.firstName} ${d.lastName}` }]
                     });
                   }
                   setShowDetailAddDriverModal(false);
-                }} 
+                }}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 Agregar

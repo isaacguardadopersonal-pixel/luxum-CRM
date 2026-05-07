@@ -33,18 +33,21 @@ type SelectedClientType =
 export default function Dashboard() {
   const { clients, loading, updateClient } = useClients();
   const { t, locale, setLocale } = useLanguage();
-  const { username, signOut } = useAuth();
+  const { username, user, signOut } = useAuth();
   const [selectedClient, setSelectedClient] = useState<SelectedClientType | null>(null);
   const [finalizingReminderNote, setFinalizingReminderNote] = useState("");
   const [isFinalizingReminder, setIsFinalizingReminder] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showUniquePoliciesModal, setShowUniquePoliciesModal] = useState(false);
   const [showReemplazosModal, setShowReemplazosModal] = useState(false);
+  const [showNuevosModal, setShowNuevosModal] = useState(false);
+  const [showRenovadosModal, setShowRenovadosModal] = useState(false);
   const [selectedReferral, setSelectedReferral] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [companyChartFilter, setCompanyChartFilter] = useState<'all'|'new'|'renewed'>('all');
 
   const stats = useMemo(() => {
     const isAll = selectedMonth === 'all';
@@ -111,6 +114,9 @@ export default function Dashboard() {
     // By company
     const byCompany: Record<string, number> = {};
     validProductsInCurrent.forEach((p) => {
+      if (companyChartFilter === 'new' && p.tipo_movimiento !== 'Venta Nueva' && p.tipo_movimiento !== undefined) return;
+      if (companyChartFilter === 'renewed' && p.tipo_movimiento !== 'Renovación') return;
+
       if (p.company) {
         byCompany[p.company] = (byCompany[p.company] || 0) + (p.premium || 0);
       }
@@ -182,6 +188,16 @@ export default function Dashboard() {
     // Active clients this month
     const activeClientsThisMonth = current.filter(c => (c.products || []).some(isProductEffectiveInMonth)).length;
 
+    // Venta Nueva
+    const nuevosProducts = validProductsInCurrent.filter(p => !p.tipo_movimiento || p.tipo_movimiento === 'Venta Nueva');
+    const nuevosCount = nuevosProducts.length;
+    const nuevosPremium = nuevosProducts.reduce((sum, p) => sum + (p.premium || 0), 0);
+    
+    // Renovaciones
+    const renovadosProducts = validProductsInCurrent.filter(p => p.tipo_movimiento === 'Renovación');
+    const renovadosCount = renovadosProducts.length;
+    const renovadosPremium = renovadosProducts.reduce((sum, p) => sum + (p.premium || 0), 0);
+
     // Reemplazos this month
     const reemplazosList = clients.flatMap(c => 
       (c.products || [])
@@ -192,10 +208,27 @@ export default function Dashboard() {
         })
     );
     const reemplazosCount = reemplazosList.length;
+    const reemplazosPremium = reemplazosList.reduce((sum, item) => sum + (item.product.premium || 0), 0);
 
     const premiumClientsList = clients.map(c => {
       if (c.status !== "Current Customer") return null;
       const validProds = (c.products || []).filter(p => isProductEffectiveInMonth(p) && !p.status?.toLowerCase().includes('cancelad'));
+      const sum = validProds.reduce((acc, p) => acc + (p.premium || 0), 0);
+      if (sum === 0) return null;
+      return { client: c, validProds, sum };
+    }).filter(Boolean) as { client: Client, validProds: Product[], sum: number }[];
+
+    const nuevosClientsList = clients.map(c => {
+      if (c.status !== "Current Customer") return null;
+      const validProds = (c.products || []).filter(p => isProductEffectiveInMonth(p) && (!p.tipo_movimiento || p.tipo_movimiento === 'Venta Nueva') && !p.status?.toLowerCase().includes('cancelad'));
+      const sum = validProds.reduce((acc, p) => acc + (p.premium || 0), 0);
+      if (sum === 0) return null;
+      return { client: c, validProds, sum };
+    }).filter(Boolean) as { client: Client, validProds: Product[], sum: number }[];
+
+    const renovadosClientsList = clients.map(c => {
+      if (c.status !== "Current Customer") return null;
+      const validProds = (c.products || []).filter(p => isProductEffectiveInMonth(p) && p.tipo_movimiento === 'Renovación' && !p.status?.toLowerCase().includes('cancelad'));
       const sum = validProds.reduce((acc, p) => acc + (p.premium || 0), 0);
       if (sum === 0) return null;
       return { client: c, validProds, sum };
@@ -216,17 +249,24 @@ export default function Dashboard() {
       totalPremium,
       uniquePolicies,
       reemplazosCount,
+      reemplazosPremium,
+      nuevosCount,
+      nuevosPremium,
+      renovadosCount,
+      renovadosPremium,
       companyData,
       typeData,
       expiringSoon,
       premiumClientsList,
+      nuevosClientsList,
+      renovadosClientsList,
       uniquePoliciesList,
       reemplazosList,
       birthdaysToday,
       topReferrers,
       premiumByType,
     };
-  }, [clients, selectedMonth]);
+  }, [clients, selectedMonth, companyChartFilter]);
 
   if (loading) {
     return (
@@ -244,7 +284,10 @@ export default function Dashboard() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            {t("dashboard.welcome").replace('👋', '')} {username ? <span className="text-primary">{username}</span> : ''} 👋
+            {t("dashboard.welcome").replace('👋', '')} 
+            <span className="text-primary ml-1">
+              {username || (user?.email ? user.email.split('@')[0] : 'Administrador')}
+            </span> 👋
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {t("dashboard.subtitle")}
@@ -332,13 +375,27 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
         <StatCard
           title={t("dashboard.premium_total")}
           value={`$${stats.totalPremium.toLocaleString("en-US", { minimumFractionDigits: 0 })}`}
           icon={<DollarSign className="w-5 h-5" />}
           subtitle={t("dashboard.desc_active")}
           onClick={() => setShowPremiumModal(true)}
+        />
+        <StatCard
+          title="Nuevos"
+          value={`$${stats.nuevosPremium.toLocaleString("en-US", { minimumFractionDigits: 0 })}`}
+          icon={<UserPlus className="w-5 h-5" />}
+          subtitle={`${stats.nuevosCount} Ventas nuevas`}
+          onClick={() => setShowNuevosModal(true)}
+        />
+        <StatCard
+          title="Renovados"
+          value={`$${stats.renovadosPremium.toLocaleString("en-US", { minimumFractionDigits: 0 })}`}
+          icon={<RefreshCw className="w-5 h-5" />}
+          subtitle={`${stats.renovadosCount} Pólizas renovadas`}
+          onClick={() => setShowRenovadosModal(true)}
         />
         <StatCard
           title={t("dashboard.active_clients")}
@@ -356,9 +413,9 @@ export default function Dashboard() {
         />
         <StatCard
           title="Reemplazos"
-          value={stats.reemplazosCount}
+          value={`$${stats.reemplazosPremium.toLocaleString("en-US", { minimumFractionDigits: 0 })}`}
           icon={<RefreshCw className="w-5 h-5" />}
-          subtitle="Pólizas sustituidas"
+          subtitle={`${stats.reemplazosCount} Pólizas sustituidas`}
           onClick={() => setShowReemplazosModal(true)}
         />
         <StatCard
@@ -398,6 +455,15 @@ export default function Dashboard() {
         <div className="glass-card p-5 lg:col-span-2 animate-fade-in">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-foreground">{t("dashboard.chart.company")}</h3>
+            <select
+              value={companyChartFilter}
+              onChange={(e) => setCompanyChartFilter(e.target.value as any)}
+              className="px-3 py-1.5 bg-secondary text-sm text-foreground border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/50"
+            >
+              <option value="all">Todos</option>
+              <option value="new">Nuevos</option>
+              <option value="renewed">Renovados</option>
+            </select>
           </div>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={stats.companyData}>
@@ -667,6 +733,48 @@ export default function Dashboard() {
               ))}
             </div>
             <button onClick={() => setShowPremiumModal(false)} className="mt-6 w-full py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors">Cerrar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Nuevos Modal */}
+      {showNuevosModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowNuevosModal(false)}>
+          <div className="glass-card max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4 border-b border-border/50 pb-2">Detalle de Ventas Nuevas</h2>
+            <div className="space-y-4">
+              {stats.nuevosClientsList.map(({ client: c, validProds, sum }) => (
+                <div key={c.id} className="flex justify-between items-center bg-secondary/50 p-3 rounded-lg">
+                  <div>
+                    <p className="font-medium text-foreground">{c.firstName} {c.lastName}</p>
+                    <p className="text-xs text-muted-foreground">{validProds.map(p => p.category).join(', ')}</p>
+                  </div>
+                  <span className="font-bold text-success">${sum.toLocaleString("en-US", { minimumFractionDigits: 0 })}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowNuevosModal(false)} className="mt-6 w-full py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors">Cerrar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Renovados Modal */}
+      {showRenovadosModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowRenovadosModal(false)}>
+          <div className="glass-card max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4 border-b border-border/50 pb-2">Detalle de Pólizas Renovadas</h2>
+            <div className="space-y-4">
+              {stats.renovadosClientsList.map(({ client: c, validProds, sum }) => (
+                <div key={c.id} className="flex justify-between items-center bg-secondary/50 p-3 rounded-lg">
+                  <div>
+                    <p className="font-medium text-foreground">{c.firstName} {c.lastName}</p>
+                    <p className="text-xs text-muted-foreground">{validProds.map(p => p.category).join(', ')}</p>
+                  </div>
+                  <span className="font-bold text-success">${sum.toLocaleString("en-US", { minimumFractionDigits: 0 })}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowRenovadosModal(false)} className="mt-6 w-full py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors">Cerrar</button>
           </div>
         </div>
       )}
