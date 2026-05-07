@@ -36,6 +36,8 @@ export default function ClientsPage() {
   const [showRenewalModal, setShowRenewalModal] = useState(false);
   const [renewalProductTarget, setRenewalProductTarget] = useState<Product | null>(null);
   const [isSameProviderRenewal, setIsSameProviderRenewal] = useState(false);
+  const [showActionSelectModal, setShowActionSelectModal] = useState(false);
+  const [actionSelectType, setActionSelectType] = useState<'renovar' | 'reemplazar'>('renovar');
   const productCategories = ["Auto", "Home", "Rent", "Comercial", "Commercial auto", "Life"];
   const formatPhoneInput = (value: string): string => {
     let digits = value.replace(/\D/g, "");
@@ -459,12 +461,13 @@ export default function ClientsPage() {
             </thead>
             <tbody>
               {paginated.map((client) => {
-                const activeProducts = (client.products || []).filter(p => !p.status || !p.status.toLowerCase().includes('cancelad'));
+                const activeProducts = (client.products || []).filter(p => !p.status || (!p.status.toLowerCase().includes('cancelad') && !p.status.toLowerCase().includes('removida') && !p.status.toLowerCase().includes('finalizada') && !p.status.toLowerCase().includes('inactiva')));
                 const totalPremium = activeProducts.reduce((sum, p) => sum + (p.premium || 0), 0);
                 const primaryProduct = activeProducts.length > 0
                   ? activeProducts.reduce((max, obj) => (obj.premium || 0) > (max.premium || 0) ? obj : max)
                   : undefined;
-                const productCount = activeProducts.length;
+                const uniqueCategories = new Set(activeProducts.map(p => p.category));
+                const productCount = uniqueCategories.size;
                 return (
                   <tr
                     key={client.id}
@@ -778,36 +781,64 @@ export default function ClientsPage() {
                 <div className="p-6 h-full flex flex-col animate-fade-in">
                   <div className="flex justify-between items-center mb-6 shrink-0">
                     <h3 className="text-sm font-bold text-primary uppercase tracking-wider">Catálogo de Productos</h3>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setProductForm({
-                          category: "Auto",
-                          firstName: detail.firstName,
-                          lastName: detail.lastName,
-                          licenseNumber: detail.driversLicense,
-                          effectiveDate: "",
-                          expirationDate: "",
-                          drivers: []
-                        });
-                        setShowProductModal(true);
-                      }}
-                      className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 hover:scale-105"
-                    >
-                      + Agregar Producto
-                    </button>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setActionSelectType('renovar');
+                          setShowActionSelectModal(true);
+                        }}
+                        className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 hover:scale-105"
+                      >
+                        Renovar
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setActionSelectType('reemplazar');
+                          setShowActionSelectModal(true);
+                        }}
+                        className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 hover:scale-105"
+                      >
+                        Reemplazar
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setProductForm({
+                            category: "Auto",
+                            firstName: detail.firstName,
+                            lastName: detail.lastName,
+                            licenseNumber: detail.driversLicense,
+                            effectiveDate: "",
+                            expirationDate: "",
+                            drivers: []
+                          });
+                          setShowProductModal(true);
+                        }}
+                        className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 hover:scale-105"
+                      >
+                        + Agregar Producto
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
                     {detail.products && detail.products.length > 0 ? (
-                      detail.products.map(prod => (
-                        <div key={prod.id} className={`p-4 rounded-xl border ${prod.status === 'Cancelada por Reemplazo' || prod.status === 'Renovada' || prod.status === 'Inactiva' ? 'bg-secondary/30 border-border/30 opacity-75' : 'bg-secondary/80 border-border/80 shadow-md'}`}>
+                      [...detail.products].sort((a, b) => {
+                        const isAActive = !a.status || a.status === 'Activa' || a.tipo_movimiento === 'Fidelización';
+                        const isBActive = !b.status || b.status === 'Activa' || b.tipo_movimiento === 'Fidelización';
+                        if (isAActive && !isBActive) return -1;
+                        if (!isAActive && isBActive) return 1;
+                        return 0;
+                      }).map(prod => (
+                        <div key={prod.id} className={`p-4 rounded-xl border ${prod.status === 'Cancelada por Reemplazo' || prod.status === 'Renovada' || prod.status === 'Inactiva' || prod.status === 'Removida por Reemplazo' || prod.status === 'Finalizada' ? 'bg-secondary/30 border-border/30 opacity-75' : 'bg-secondary/80 border-border/80 shadow-md'}`}>
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-3">
                             <div className="flex items-center gap-3 flex-wrap">
                               <span className="text-base font-bold text-foreground">{prod.category}</span>
                               <span className="text-sm text-muted-foreground font-mono bg-background/50 px-2 py-1 rounded-md">#{prod.policyNumber || 'N/A'}</span>
-                              {prod.status === 'Cancelada por Reemplazo' && (
-                                <span className="px-2 py-1 text-xs font-bold bg-destructive/15 text-destructive rounded-md uppercase tracking-wider">Cancelada</span>
+                              {(prod.status === 'Cancelada por Reemplazo' || prod.status === 'Removida por Reemplazo') && (
+                                <span className="px-2 py-1 text-xs font-bold bg-destructive/15 text-destructive rounded-md uppercase tracking-wider">Removida</span>
                               )}
                               {prod.status === 'Inactiva' && (
                                 <span className="px-2 py-1 text-xs font-bold bg-destructive/15 text-destructive rounded-md uppercase tracking-wider">Inactiva</span>
@@ -815,8 +846,13 @@ export default function ClientsPage() {
                               {prod.status === 'Renovada' && (
                                 <span className="px-2 py-1 text-xs font-bold bg-info/15 text-info rounded-md uppercase tracking-wider">Renovada</span>
                               )}
+                              {prod.status === 'Finalizada' && (
+                                <span className="px-2 py-1 text-xs font-bold bg-success/15 text-success rounded-md uppercase tracking-wider">Finalizada</span>
+                              )}
                               {(!prod.status || prod.status === 'Activa') && (
-                                <span className="px-2 py-1 text-xs font-bold bg-success/15 text-success rounded-md uppercase tracking-wider">Vigente</span>
+                                <span className="px-2 py-1 text-xs font-bold bg-success/15 text-success rounded-md uppercase tracking-wider">
+                                  {prod.tipo_movimiento === 'Fidelización' ? 'Fidelización' : 'Vigente'}
+                                </span>
                               )}
                             </div>
                             <span className="text-lg font-bold text-primary">{prod.premium ? `$${prod.premium.toLocaleString()}` : "—"}</span>
@@ -830,37 +866,7 @@ export default function ClientsPage() {
                             </div>
 
                             <div className="flex gap-2 items-center w-full md:w-auto justify-end">
-                              {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (!prod.status || prod.status === 'Activa') && (
-                                <>
-                                  <button
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      setRenewalProductTarget(prod);
-                                      setShowRenewalModal(true);
-                                    }}
-                                    className="px-3 py-1.5 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-colors"
-                                  >
-                                    Renovar
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      setProductForm({
-                                        ...prod,
-                                        id: "",
-                                        id_poliza_padre: prod.id,
-                                        tipo_movimiento: "Reemplazo",
-                                        createdAt: new Date().toISOString()
-                                      });
-                                      setIsSameProviderRenewal(false);
-                                      setShowProductModal(true);
-                                    }}
-                                    className="px-3 py-1.5 bg-warning/10 text-warning text-xs font-bold rounded-lg hover:bg-warning/20 transition-colors"
-                                  >
-                                    Reemplazar
-                                  </button>
-                                </>
-                              )}
+
                               {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
                                 <button
                                   onClick={(e) => {
@@ -1563,6 +1569,62 @@ export default function ClientsPage() {
         </div>
       )}
 
+      {/* Action Select Modal */}
+      {showActionSelectModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setShowActionSelectModal(false)}>
+          <div className="glass-card max-w-md w-full p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4">
+              {actionSelectType === 'renovar' ? 'Renovar Producto' : 'Reemplazar Producto'}
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Selecciona el producto vigente que deseas {actionSelectType}:
+            </p>
+            <div className="grid grid-cols-1 gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+              {(() => {
+                const activeProds = (detail?.products || []).filter(p => !p.status || p.status === 'Activa' || p.tipo_movimiento === 'Fidelización');
+                if (activeProds.length === 0) {
+                  return <p className="text-sm text-muted-foreground italic">No hay productos vigentes para realizar esta acción.</p>;
+                }
+                return activeProds.map(prod => (
+                  <button
+                    key={prod.id}
+                    onClick={() => {
+                      if (actionSelectType === 'renovar') {
+                        setRenewalProductTarget(prod);
+                        setShowRenewalModal(true);
+                      } else {
+                        setProductForm({
+                          ...prod,
+                          id: "",
+                          id_poliza_padre: prod.id,
+                          tipo_movimiento: "Reemplazo",
+                          createdAt: new Date().toISOString()
+                        });
+                        setIsSameProviderRenewal(false);
+                        setShowProductModal(true);
+                      }
+                      setShowActionSelectModal(false);
+                    }}
+                    className="w-full text-left p-3 bg-secondary/50 hover:bg-secondary border border-border rounded-lg transition-colors flex justify-between items-center"
+                  >
+                    <div>
+                      <p className="text-sm font-bold text-foreground">{prod.category} - {prod.company}</p>
+                      <p className="text-xs text-muted-foreground">Póliza: #{prod.policyNumber || 'N/A'}</p>
+                    </div>
+                    <span className="text-xs font-bold text-primary">Seleccionar</span>
+                  </button>
+                ));
+              })()}
+            </div>
+            <div className="flex justify-end mt-6">
+              <button onClick={() => setShowActionSelectModal(false)} className="px-4 py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Product Modal */}
       {showProductModal && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setShowProductModal(false)}>
@@ -1739,16 +1801,12 @@ export default function ClientsPage() {
                   if (productForm.id_poliza_padre) {
                     const oldProduct = allProductsContext.find(p => p.id === productForm.id_poliza_padre);
                     if (oldProduct) {
-                      const oldDate = oldProduct.createdAt ? new Date(oldProduct.createdAt) : new Date();
-                      const now = new Date();
-                      const diffDays = Math.ceil(Math.abs(now.getTime() - oldDate.getTime()) / (1000 * 60 * 60 * 24));
-
-                      if (diffDays <= 180) {
-                        movimiento = "Reemplazo";
-                      } else {
-                        movimiento = "Venta Nueva";
-                      }
                       isReemplazo = true;
+                      if (productForm.tipo_movimiento === "Renovación") {
+                        movimiento = "Fidelización";
+                      } else if (productForm.tipo_movimiento === "Reemplazo") {
+                        movimiento = "Reemplazo";
+                      }
                     }
                   }
 
@@ -1765,10 +1823,10 @@ export default function ClientsPage() {
                     expirationDate: productForm.expirationDate || "",
                     drivers: productForm.drivers || [],
                     createdAt: productForm.createdAt || new Date().toISOString(),
-                    tipo_movimiento: isReemplazo ? movimiento : (productForm.tipo_movimiento || "Venta Nueva"),
+                    tipo_movimiento: movimiento,
                     id_poliza_padre: productForm.id_poliza_padre,
                     fecha_sustitucion: isReemplazo ? new Date().toISOString() : undefined,
-                    status: isReemplazo || !productForm.id ? "Activa" : (productForm.status || "Activa")
+                    status: !productForm.id ? "Activa" : (productForm.status || "Activa")
                   };
 
                   const isNewProduct = !productForm.id;
@@ -1777,7 +1835,7 @@ export default function ClientsPage() {
                   if (editingClient) {
                     let existingProducts = editForm.products || [];
                     if (isNewReplacement) {
-                      const cancelStatus = productForm.tipo_movimiento === "Renovación" ? "Renovada" : (movimiento === "Venta Nueva" ? "Inactiva" : "Cancelada por Reemplazo");
+                      const cancelStatus = productForm.tipo_movimiento === "Renovación" ? "Finalizada" : "Removida por Reemplazo";
                       existingProducts = existingProducts.map(p => p.id === productForm.id_poliza_padre ? { ...p, status: cancelStatus } : p);
                     }
 
@@ -1792,7 +1850,7 @@ export default function ClientsPage() {
                   } else if (detail) {
                     let existingProducts = detail.products || [];
                     if (isNewReplacement) {
-                      const cancelStatus = productForm.tipo_movimiento === "Renovación" ? "Renovada" : (movimiento === "Venta Nueva" ? "Inactiva" : "Cancelada por Reemplazo");
+                      const cancelStatus = productForm.tipo_movimiento === "Renovación" ? "Finalizada" : "Removida por Reemplazo";
                       existingProducts = existingProducts.map(p => p.id === productForm.id_poliza_padre ? { ...p, status: cancelStatus } : p);
                     }
 
