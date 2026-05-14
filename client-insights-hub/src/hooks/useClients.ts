@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import Papa from "papaparse";
 import { Client, parseCSVRow, Product } from "@/lib/clientData";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const sanitizeProductForDb = (p: Product, clientId: string) => {
   const cleanP = { ...p, client_id: clientId };
@@ -16,10 +17,11 @@ const sanitizeProductForDb = (p: Product, clientId: string) => {
 
 
 export function useClients() {
+  const { role, username } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: clients = [], isLoading: loading } = useQuery({
-    queryKey: ["clients"],
+    queryKey: ["clients", role, username],
     queryFn: async () => {
       try {
         let allData: any[] = [];
@@ -28,10 +30,15 @@ export function useClients() {
         let fetchMore = true;
 
         while (fetchMore) {
-          const { data, error } = await supabase
+          let query = supabase
             .from("clients")
-            .select("*, drivers:add_driver(*)")
-            .range(from, from + step - 1);
+            .select("*, drivers:add_driver(*)");
+
+          if (role === 'invitado' && username) {
+            query = query.eq('created_by', username);
+          }
+
+          const { data, error } = await query.range(from, from + step - 1);
             
           if (error) throw error;
           
@@ -167,7 +174,7 @@ export function useClients() {
 
   const addClients = async (newClients: Client[]) => {
     // Actualizar UI optimísticamente
-    queryClient.setQueryData(["clients"], (prev: Client[] | undefined) => {
+    queryClient.setQueryData(["clients", role, username], (prev: Client[] | undefined) => {
       return [...newClients, ...(prev || [])];
     });
 
@@ -212,7 +219,7 @@ export function useClients() {
     let clientToSync: Client | null = null;
     
     // Actualizar UI optimísticamente
-    queryClient.setQueryData(["clients"], (prev: Client[] | undefined) => {
+    queryClient.setQueryData(["clients", role, username], (prev: Client[] | undefined) => {
       if (!prev) return [];
       return prev.map((c) => {
         if (c.id === id) {
@@ -291,7 +298,7 @@ export function useClients() {
 
   const deleteClient = async (id: string) => {
     // Actualizar UI optimísticamente
-    queryClient.setQueryData(["clients"], (prev: Client[] | undefined) => {
+    queryClient.setQueryData(["clients", role, username], (prev: Client[] | undefined) => {
       if (!prev) return [];
       return prev.filter(c => c.id !== id);
     });
@@ -307,7 +314,7 @@ export function useClients() {
   };
 
   const deleteAllClients = async () => {
-    queryClient.setQueryData(["clients"], []);
+    queryClient.setQueryData(["clients", role, username], []);
     try {
       const { error } = await supabase.from("clients").delete().neq("id", "none_existent");
       if (error) throw error;
