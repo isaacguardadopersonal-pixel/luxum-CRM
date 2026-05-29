@@ -7,6 +7,7 @@ export const translations: Record<"es" | "en", Dictionary> = {
     "sidebar.clients": "Clientes",
     "sidebar.policies": "Pólizas",
     "sidebar.analytics": "Analíticas",
+    "sidebar.reports": "Reporte",
     "sidebar.settings": "Ajustes",
     "sidebar.logout": "Cerrar sesión",
     
@@ -112,6 +113,7 @@ export const translations: Record<"es" | "en", Dictionary> = {
     "sidebar.clients": "Clients",
     "sidebar.policies": "Policies",
     "sidebar.analytics": "Analytics",
+    "sidebar.reports": "Report",
     "sidebar.settings": "Settings",
     "sidebar.logout": "Log Out",
     
