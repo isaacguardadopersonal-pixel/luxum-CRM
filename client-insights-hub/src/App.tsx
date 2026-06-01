@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import ClientsPage from "./pages/ClientsPage";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
+import ReportsPage from "./pages/ReportsPage";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -29,6 +30,11 @@ const App = () => (
             <Route path="/clients" element={
               <ProtectedRoute>
                 <ClientsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/reports" element={
+              <ProtectedRoute>
+                <ReportsPage />
               </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />

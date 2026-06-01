@@ -26,6 +26,7 @@ export function CRMSidebar({ activePage }: CRMSidebarProps) {
     { id: "clients", icon: Users, label: t("sidebar.clients"), path: "/clients" },
     { id: "policies", icon: FileText, label: t("sidebar.policies"), path: "/policies" },
     { id: "analytics", icon: TrendingUp, label: t("sidebar.analytics"), path: "/analytics" },
+    { id: "reports", icon: TrendingUp, label: t("sidebar.reports"), path: "/reports" },
     { id: "settings", icon: Settings, label: t("sidebar.settings"), path: "/settings" },
   ];
 

@@ -24,14 +24,17 @@ export interface Product {
   licenseNumber: string;
   effectiveDate?: string;
   expirationDate?: string;
+  cancelationDate?: string | null;
   drivers?: ProductDriver[];
   createdAt?: string;
   tipo_movimiento?: 'Venta Nueva' | 'Renovación' | 'Reemplazo' | 'Fidelización' | string;
   id_poliza_padre?: string;
   fecha_sustitucion?: string;
-  status?: 'Activa' | 'Cancelada por Reemplazo' | 'Removida por Reemplazo' | 'Finalizada' | string;
+  status?: 'Activa' | 'Renovada' | 'Cancelada' | 'Cancelada por Reemplazo' | 'Removida por Reemplazo' | 'Finalizada' | string;
   motivo_salida?: string;
 }
+
+export type LoyaltyRank = 'Plata' | 'Oro' | 'Diamante';
 
 export interface Reminder {
   id: string;
@@ -143,5 +146,119 @@ export function getStatusColor(status: string): string {
     case "IMPORTANTE": return "status-importante";
     case "Website": return "status-website";
     default: return "status-quoting";
+  }
+}
+
+export interface ClientPremiumSummary {
+  primaryPremium: number;
+  primaryProduct: Product | null;
+  hasDeduction: boolean;
+  deductionAmount: number;
+  visualString: string;
+}
+
+/**
+ * Calcula el resumen financiero (libro de negocios) de un mes específico (ej. "05/2026")
+ */
+export function calculateMonthlyBookOfBusiness(
+  clients: Client[],
+  targetMonth: string
+): { activeTotal: number; historicalTotal: number; lossTotal: number; netTotal: number } {
+  let activeTotal = 0;
+  let historicalTotal = 0;
+  let lossTotal = 0;
+
+  clients.forEach(client => {
+    if (!client.products) return;
+
+    client.products.forEach(product => {
+      const isSameMonth = (dateStr?: string | null) => {
+        if (!dateStr) return false;
+        // Permite validar formatos de fecha comunes (MM/DD/YYYY o YYYY-MM-DD)
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          const monthYear = `${parts[0].padStart(2, '0')}/${parts[2]}`;
+          return monthYear === targetMonth;
+        }
+        return false;
+      };
+
+      if (product.status === 'Activa' && isSameMonth(product.effectiveDate)) {
+        activeTotal += product.premium || 0;
+      }
+
+      if (product.status === 'Renovada' && isSameMonth(product.effectiveDate)) {
+        historicalTotal += product.premium || 0;
+      }
+
+      if (product.status === 'Cancelada' && product.cancelationDate) {
+        const cancelDateObj = new Date(product.cancelationDate);
+        const expDateObj = product.expirationDate ? new Date(product.expirationDate) : null;
+
+        if (expDateObj && cancelDateObj < expDateObj && isSameMonth(product.cancelationDate)) {
+          lossTotal += product.premium || 0;
+        }
+      }
+    });
+  });
+
+  return {
+    activeTotal,
+    historicalTotal,
+    lossTotal,
+    netTotal: activeTotal + historicalTotal - lossTotal
+  };
+}
+
+/**
+ * Evalúa los productos de un cliente bajo la jerarquía: Activa (1) > Renovada (2) > Cancelada (3)
+ */
+export function getClientPremiumSummary(client: Client): ClientPremiumSummary {
+  const products = client.products || [];
+
+  const activeProduct = products.find(p => p.status === 'Activa');
+  const primaryPremium = activeProduct ? (activeProduct.premium || 0) : 0;
+
+  let deductionAmount = 0;
+  const canceledProducts = products.filter(p => p.status === 'Cancelada');
+
+  canceledProducts.forEach(p => {
+    if (p.cancelationDate && p.expirationDate) {
+      const cancelDateObj = new Date(p.cancelationDate);
+      const expDateObj = new Date(p.expirationDate);
+      if (cancelDateObj < expDateObj) {
+        deductionAmount += p.premium || 0;
+      }
+    }
+  });
+
+  let visualString = `$${primaryPremium.toLocaleString()}`;
+  if (deductionAmount > 0) {
+    visualString += ` | Deducción: -$${deductionAmount.toLocaleString()}`;
+  }
+
+  return {
+    primaryPremium,
+    primaryProduct: activeProduct || null,
+    hasDeduction: deductionAmount > 0,
+    deductionAmount,
+    visualString
+  };
+}
+
+/**
+ * Determina el rango de fidelización según la cantidad de renovaciones del cliente
+ */
+export function getClientLoyaltyRank(client: Client): { rank: LoyaltyRank; color: string; count: number } {
+  const products = client.products || [];
+
+  const renewalCount = products.filter(p => p.status === 'Renovada' || p.tipo_movimiento === 'Renovación').length;
+
+  if (renewalCount >= 6) {
+    return { rank: 'Diamante', color: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30', count: renewalCount };
+  } else if (renewalCount >= 3) {
+    return { rank: 'Oro', color: 'text-amber-400 bg-amber-400/10 border-amber-400/30', count: renewalCount };
+  } else {
+    return { rank: 'Plata', color: 'text-slate-400 bg-slate-400/10 border-slate-400/30', count: renewalCount };
   }
 }

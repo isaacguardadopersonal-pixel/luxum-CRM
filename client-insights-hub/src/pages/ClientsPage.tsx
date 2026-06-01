@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { CRMLayout } from "@/components/CRMLayout";
 import { useClients } from "@/hooks/useClients";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { getStatusColor, Client, Product, ChangeLog, Reminder, parseCSVRow } from "@/lib/clientData";
+import { getStatusColor, Client, Product, ChangeLog, Reminder, parseCSVRow, getClientPremiumSummary, getClientLoyaltyRank } from "@/lib/clientData";
 import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, ChevronDown, Phone, Mail, Eye, Upload, Edit, Trash2, RefreshCw } from "lucide-react";
 import * as XLSX from 'xlsx';
 import Papa from "papaparse";
@@ -18,6 +19,26 @@ export default function ClientsPage() {
   const [page, setPage] = useState(1);
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const cid = searchParams.get("clientId");
+    if (cid && clients.length > 0) {
+      if (clients.some(c => c.id === cid)) {
+        setSelectedClient(cid);
+      }
+    }
+  }, [searchParams, clients]);
+
+  const closeClientModal = () => {
+    setSelectedClient(null);
+    if (searchParams.get("clientId")) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete("clientId");
+      setSearchParams(newParams);
+    }
+  };
+
   const [editingClient, setEditingClient] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Client>>({});
   const [editReason, setEditReason] = useState("");
@@ -38,6 +59,9 @@ export default function ClientsPage() {
   const [isSameProviderRenewal, setIsSameProviderRenewal] = useState(false);
   const [showActionSelectModal, setShowActionSelectModal] = useState(false);
   const [actionSelectType, setActionSelectType] = useState<'renovar' | 'reemplazar'>('renovar');
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelProductId, setCancelProductId] = useState<string>("");
+  const [cancelDate, setCancelDate] = useState<string>("");
   const productCategories = ["Auto", "Home", "Rent", "Comercial", "Commercial auto", "Life"];
   const formatPhoneInput = (value: string): string => {
     let digits = value.replace(/\D/g, "");
@@ -301,6 +325,49 @@ export default function ClientsPage() {
     return counts;
   }, [clients]);
 
+  const handleConfirmCancelation = async (productId: string, cancelDateStr: string) => {
+    if (!cancelDateStr) {
+      alert("La fecha de cancelación es obligatoria.");
+      return;
+    }
+
+    if (!detail || !detail.products) return;
+
+    const product = detail.products.find(p => p.id === productId);
+    if (!product) return;
+
+    const updatedProducts = detail.products.map(p => {
+      if (p.id === productId) {
+        return {
+          ...p,
+          status: "Cancelada",
+          cancelationDate: cancelDateStr
+        };
+      }
+      return p;
+    });
+
+    try {
+      await updateClient(detail.id, {
+        products: updatedProducts,
+        logs: [
+          ...(detail.logs || []),
+          {
+            id: Math.random().toString(36).substring(2, 15),
+            date: new Date().toISOString(),
+            reason: `[${username || 'Usuario'}] Canceló póliza ${product.category} - ${product.policyNumber || 'Sin Póliza'} (Fecha de Cancelación: ${cancelDateStr})`
+          }
+        ]
+      });
+      setShowCancelModal(false);
+      setCancelDate("");
+      setCancelProductId("");
+    } catch (err) {
+      console.error("Error al cancelar la póliza:", err);
+      alert("Hubo un error al guardar la cancelación.");
+    }
+  };
+
   if (loading) {
     return (
       <CRMLayout activePage="clients">
@@ -472,7 +539,10 @@ export default function ClientsPage() {
                   <tr
                     key={client.id}
                     className="border-b border-border/30 hover:bg-secondary/30 transition-colors cursor-pointer"
-                    onClick={() => setSelectedClient(client.id)}
+                    onClick={() => {
+                      setSelectedClient(client.id);
+                      setSearchParams({ clientId: client.id });
+                    }}
                   >
                     <td className="px-4 py-3">
                       <div>
@@ -557,7 +627,7 @@ export default function ClientsPage() {
 
       {/* Client Detail Modal */}
       {detail && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedClient(null)}>
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={closeClientModal}>
           <div className="glass-card max-w-[90vw] md:max-w-6xl w-full p-6 max-h-[90vh] overflow-y-auto custom-scrollbar animate-fade-in flex flex-col" onClick={(e) => e.stopPropagation()}>
 
             {/* 1. INFORMACIÓN PRINCIPAL (Cabecera Global) */}
@@ -653,7 +723,7 @@ export default function ClientsPage() {
 
                 {/* Botón de Cierre */}
                 <div className="flex self-start justify-end">
-                  <button onClick={() => setSelectedClient(null)} className="p-2 bg-secondary text-muted-foreground rounded-lg hover:bg-secondary/80 hover:text-foreground transition-colors shadow-sm">
+                  <button onClick={closeClientModal} className="p-2 bg-secondary text-muted-foreground rounded-lg hover:bg-secondary/80 hover:text-foreground transition-colors shadow-sm">
                     <span className="text-xl leading-none">&times;</span>
                   </button>
                 </div>
@@ -713,11 +783,35 @@ export default function ClientsPage() {
                         <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{t("field.dl_state")}</span>
                         <span className="text-base font-medium text-foreground">{detail.dlState || "—"}</span>
                       </div>
-                      <div className="flex justify-between items-center p-4 hover:bg-secondary/30 transition-colors">
+                      <div className="flex justify-between items-center p-4 border-b border-border/30 hover:bg-secondary/30 transition-colors">
                         <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">{t("field.referred_by")}</span>
                         <span className="text-base font-medium text-foreground">{detail.referredBy || "—"}</span>
                       </div>
+                      <div className="flex justify-between items-center p-4 hover:bg-secondary/30 transition-colors">
+                        <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Libro de Negocios (Prima)</span>
+                        <span className="text-base font-bold text-foreground">
+                          {getClientPremiumSummary(detail).visualString}
+                        </span>
+                      </div>
                     </div>
+
+                    {/* Reporte de Fidelización */}
+                    {(() => {
+                      const loyalty = getClientLoyaltyRank(detail);
+                      return (
+                        <div className="mt-6 pt-6 border-t border-border/30 animate-fade-in">
+                          <h4 className="text-sm font-bold text-primary uppercase tracking-wider mb-3">Reporte de Fidelización</h4>
+                          <div className="flex items-center gap-4 bg-secondary/30 p-4 rounded-xl border border-border/40 shadow-inner">
+                            <div className={`px-4 py-2 rounded-full border text-xs font-bold shadow-sm ${loyalty.color}`}>
+                              Rango {loyalty.rank}
+                            </div>
+                            <div className="text-sm text-foreground/80">
+                              El cliente ha completado <span className="font-semibold text-foreground">{loyalty.count}</span> ciclos de póliza (renovaciones).
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {detail.drivers && detail.drivers.length > 0 && (
                       <div className="pt-4 border-t border-border/30">
@@ -795,12 +889,18 @@ export default function ClientsPage() {
                       <button
                         onClick={(e) => {
                           e.preventDefault();
-                          setActionSelectType('reemplazar');
-                          setShowActionSelectModal(true);
+                          const activeProds = (detail?.products || []).filter(p => !p.status || p.status === 'Activa' || p.tipo_movimiento === 'Fidelización');
+                          if (activeProds.length > 0) {
+                            setCancelProductId(activeProds[0].id);
+                          } else {
+                            setCancelProductId("");
+                          }
+                          setCancelDate("");
+                          setShowCancelModal(true);
                         }}
                         className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 hover:scale-105"
                       >
-                        Reemplazar
+                        Cancelación
                       </button>
                       <button
                         onClick={(e) => {
@@ -832,7 +932,7 @@ export default function ClientsPage() {
                         if (!isAActive && isBActive) return 1;
                         return 0;
                       }).map(prod => (
-                        <div key={prod.id} className={`p-4 rounded-xl border ${prod.status === 'Cancelada por Reemplazo' || prod.status === 'Renovada' || prod.status === 'Inactiva' || prod.status === 'Removida por Reemplazo' || prod.status === 'Finalizada' ? 'bg-secondary/30 border-border/30 opacity-75' : 'bg-secondary/80 border-border/80 shadow-md'}`}>
+                        <div key={prod.id} className={`p-4 rounded-xl border ${prod.status === 'Cancelada' || prod.status === 'Cancelada por Reemplazo' || prod.status === 'Renovada' || prod.status === 'Inactiva' || prod.status === 'Removida por Reemplazo' || prod.status === 'Finalizada' ? 'bg-secondary/30 border-border/30 opacity-75' : 'bg-secondary/80 border-border/80 shadow-md'}`}>
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-3">
                             <div className="flex items-center gap-3 flex-wrap">
                               <span className="text-base font-bold text-foreground">{prod.category}</span>
@@ -854,8 +954,15 @@ export default function ClientsPage() {
                                   {prod.tipo_movimiento === 'Fidelización' ? 'Fidelización' : 'Vigente'}
                                 </span>
                               )}
+                              {prod.status === 'Cancelada' && (
+                                <span className="px-2 py-1 text-xs font-bold bg-destructive/15 text-destructive rounded-md uppercase tracking-wider">
+                                  Cancelada
+                                </span>
+                              )}
                             </div>
-                            <span className="text-lg font-bold text-primary">{prod.premium ? `$${prod.premium.toLocaleString()}` : "—"}</span>
+                            <span className={`text-lg font-bold ${prod.status === 'Cancelada' ? 'text-destructive' : 'text-primary'}`}>
+                              {prod.status === 'Cancelada' ? `-$${(prod.premium || 0).toLocaleString()}` : (prod.premium ? `$${prod.premium.toLocaleString()}` : "—")}
+                            </span>
                           </div>
 
                           <div className="flex flex-col md:flex-row justify-between items-start md:items-end mt-3 pt-3 border-t border-border/30 gap-4">
@@ -1705,6 +1812,36 @@ export default function ClientsPage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4 animate-fade-in">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Estado de la Póliza</label>
+                  <select
+                    value={productForm.status || "Activa"}
+                    onChange={(e) => setProductForm({ ...productForm, status: e.target.value })}
+                    className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  >
+                    <option value="Activa">Activa</option>
+                    <option value="Renovada">Renovada</option>
+                    <option value="Cancelada">Cancelada</option>
+                    <option value="Finalizada">Finalizada</option>
+                    <option value="Inactiva">Inactiva</option>
+                  </select>
+                </div>
+                {productForm.status === 'Cancelada' && (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Fecha de Cancelación <span className="text-destructive">*</span></label>
+                    <input
+                      type="text"
+                      required
+                      value={productForm.cancelationDate || ""}
+                      onChange={(e) => setProductForm({ ...productForm, cancelationDate: formatDateInput(e.target.value) })}
+                      placeholder="MM/DD/YYYY"
+                      className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Drivers Section */}
               <div className="pt-2 border-t border-border/50">
                 <div className="flex justify-between items-center mb-2">
@@ -1794,6 +1931,11 @@ export default function ClientsPage() {
               </button>
               <button
                 onClick={() => {
+                  if (productForm.status === 'Cancelada' && !productForm.cancelationDate) {
+                    alert("La Fecha de Cancelación es obligatoria para pólizas Canceladas.");
+                    return;
+                  }
+
                   let isReemplazo = false;
                   let movimiento = productForm.tipo_movimiento || "Venta Nueva";
                   const allProductsContext = editingClient ? (editForm.products || []) : (detail?.products || []);
@@ -1821,6 +1963,7 @@ export default function ClientsPage() {
                     licenseNumber: productForm.licenseNumber || "",
                     effectiveDate: productForm.effectiveDate || "",
                     expirationDate: productForm.expirationDate || "",
+                    cancelationDate: productForm.cancelationDate || null,
                     drivers: productForm.drivers || [],
                     createdAt: productForm.createdAt || new Date().toISOString(),
                     tipo_movimiento: movimiento,
@@ -2053,6 +2196,83 @@ export default function ClientsPage() {
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 Agregar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancelation Modal */}
+      {showCancelModal && detail && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setShowCancelModal(false)}>
+          <div className="glass-card max-w-md w-full p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4">Confirmar Cancelación de Póliza</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              ¿Estás seguro de que deseas cancelar esta póliza?
+            </p>
+
+            <div className="space-y-4 mb-6">
+              {(() => {
+                const activeProds = (detail.products || []).filter(p => !p.status || p.status === 'Activa' || p.tipo_movimiento === 'Fidelización');
+                
+                if (activeProds.length === 0) {
+                  return <p className="text-sm text-destructive font-medium">No hay pólizas vigentes para cancelar.</p>;
+                }
+                
+                return (
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Selecciona la póliza a cancelar</label>
+                    <select
+                      value={cancelProductId}
+                      onChange={(e) => setCancelProductId(e.target.value)}
+                      className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    >
+                      <option value="" disabled>Selecciona una póliza...</option>
+                      {activeProds.map(prod => (
+                        <option key={prod.id} value={prod.id}>
+                          {prod.category} - {prod.company} (Póliza: #{prod.policyNumber || 'N/A'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
+
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Fecha de Cancelación <span className="text-destructive">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={cancelDate}
+                  onChange={(e) => setCancelDate(formatDateInput(e.target.value))}
+                  placeholder="MM/DD/YYYY"
+                  className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="px-4 py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors"
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={() => {
+                  if (!cancelProductId) {
+                    alert("Debes seleccionar una póliza para cancelar.");
+                    return;
+                  }
+                  if (!cancelDate) {
+                    alert("La Fecha de Cancelación es obligatoria.");
+                    return;
+                  }
+                  handleConfirmCancelation(cancelProductId, cancelDate);
+                }}
+                className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg text-sm font-bold transition-opacity hover:opacity-90 shadow-md shadow-destructive/20"
+              >
+                Confirmar Cancelación
               </button>
             </div>
           </div>
