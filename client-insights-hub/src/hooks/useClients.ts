@@ -36,12 +36,17 @@ export function useClients(statusFilter = "all") {
             .select("*, drivers:add_driver(*)");
 
           if (statusFilter === "Seguimiento") {
-            query = query.eq("status", "Seguimiento").eq("created_by", userRef);
+            query = query.eq("status", "Seguimiento");
+            if (role !== 'admin') {
+              query = query.eq("created_by", userRef);
+            }
           } else {
-            query = query.or(`status.neq.Seguimiento,created_by.eq.${userRef}`);
+            if (role !== 'admin') {
+              query = query.or(`status.neq.Seguimiento,created_by.eq.${userRef}`);
 
-            if (role === 'invitado') {
-              query = query.eq('created_by', userRef);
+              if (role === 'invitado') {
+                query = query.eq('created_by', userRef);
+              }
             }
           }
 
