@@ -19,6 +19,7 @@ const sanitizeProductForDb = (p: Product, clientId: string) => {
 export function useClients(statusFilter = "all") {
   const { role, username } = useAuth();
   const queryClient = useQueryClient();
+  const userRef = username || 'unknown';
 
   const { data: clients = [], isLoading: loading } = useQuery({
     queryKey: ["clients", role, username, statusFilter],
@@ -35,21 +36,12 @@ export function useClients(statusFilter = "all") {
             .select("*, drivers:add_driver(*)");
 
           if (statusFilter === "Seguimiento") {
-            query = query.eq("status", "Seguimiento");
-            if (username) {
-              query = query.eq("created_by", username);
-            } else {
-              query = query.eq("created_by", "non_existent_user");
-            }
+            query = query.eq("status", "Seguimiento").eq("created_by", userRef);
           } else {
-            if (username) {
-              query = query.or(`status.neq.Seguimiento,created_by.eq.${username}`);
-            } else {
-              query = query.neq("status", "Seguimiento");
-            }
+            query = query.or(`status.neq.Seguimiento,created_by.eq.${userRef}`);
 
-            if (role === 'invitado' && username) {
-              query = query.eq('created_by', username);
+            if (role === 'invitado') {
+              query = query.eq('created_by', userRef);
             }
           }
 
@@ -232,13 +224,17 @@ export function useClients(statusFilter = "all") {
 
   const updateClient = async (id: string, updatedClient: Partial<Client>) => {
     let clientToSync: Client | null = null;
+    const clientUpdate = { ...updatedClient };
+    if (clientUpdate.status === "Seguimiento") {
+      clientUpdate.created_by = userRef;
+    }
     
     // Actualizar UI optimísticamente
     queryClient.setQueryData(["clients", role, username, statusFilter], (prev: Client[] | undefined) => {
       if (!prev) return [];
       return prev.map((c) => {
         if (c.id === id) {
-          const newC = { ...c, ...updatedClient };
+          const newC = { ...c, ...clientUpdate };
           clientToSync = newC;
           return newC;
         }
