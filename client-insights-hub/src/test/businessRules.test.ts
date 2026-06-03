@@ -102,6 +102,29 @@ describe("Reglas de Negocio del CRM de Seguros", () => {
       expect(res.lossTotal).toBe(0); // No se resta
       expect(res.netTotal).toBe(800);
     });
+
+    it("debe calcular correctamente el libro de negocios histórico (cuando targetMonth es 'all')", () => {
+      const client1 = createMockClient("c1", [
+        { status: "Activa", premium: 600, effectiveDate: "05/15/2026" }
+      ]);
+      const client2 = createMockClient("c2", [
+        { status: "Renovada", premium: 500, effectiveDate: "04/10/2026" }
+      ]);
+      const client3 = createMockClient("c3", [
+        { 
+          status: "Cancelada", 
+          premium: 300, 
+          effectiveDate: "02/01/2026",
+          expirationDate: "08/01/2026",
+          cancelationDate: "03/15/2026" // Cancelada antes de expiración
+        }
+      ]);
+      const res = calculateMonthlyBookOfBusiness([client1, client2, client3], "all");
+      expect(res.activeTotal).toBe(600);
+      expect(res.historicalTotal).toBe(500);
+      expect(res.lossTotal).toBe(300);
+      expect(res.netTotal).toBe(800); // 600 + 500 - 300 = 800
+    });
   });
 
   describe("Regla 2: Vista Previa del Cliente y Jerarquía Visual de Prima", () => {

@@ -16,12 +16,12 @@ const sanitizeProductForDb = (p: Product, clientId: string) => {
 };
 
 
-export function useClients() {
+export function useClients(statusFilter = "all") {
   const { role, username } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: clients = [], isLoading: loading } = useQuery({
-    queryKey: ["clients", role, username],
+    queryKey: ["clients", role, username, statusFilter],
     queryFn: async () => {
       try {
         let allData: any[] = [];
@@ -34,8 +34,23 @@ export function useClients() {
             .from("clients")
             .select("*, drivers:add_driver(*)");
 
-          if (role === 'invitado' && username) {
-            query = query.eq('created_by', username);
+          if (statusFilter === "Seguimiento") {
+            query = query.eq("status", "Seguimiento");
+            if (username) {
+              query = query.eq("created_by", username);
+            } else {
+              query = query.eq("created_by", "non_existent_user");
+            }
+          } else {
+            if (username) {
+              query = query.or(`status.neq.Seguimiento,created_by.eq.${username}`);
+            } else {
+              query = query.neq("status", "Seguimiento");
+            }
+
+            if (role === 'invitado' && username) {
+              query = query.eq('created_by', username);
+            }
           }
 
           const { data, error } = await query.range(from, from + step - 1);
@@ -174,7 +189,7 @@ export function useClients() {
 
   const addClients = async (newClients: Client[]) => {
     // Actualizar UI optimísticamente
-    queryClient.setQueryData(["clients", role, username], (prev: Client[] | undefined) => {
+    queryClient.setQueryData(["clients", role, username, statusFilter], (prev: Client[] | undefined) => {
       return [...newClients, ...(prev || [])];
     });
 
@@ -219,7 +234,7 @@ export function useClients() {
     let clientToSync: Client | null = null;
     
     // Actualizar UI optimísticamente
-    queryClient.setQueryData(["clients", role, username], (prev: Client[] | undefined) => {
+    queryClient.setQueryData(["clients", role, username, statusFilter], (prev: Client[] | undefined) => {
       if (!prev) return [];
       return prev.map((c) => {
         if (c.id === id) {
@@ -298,7 +313,7 @@ export function useClients() {
 
   const deleteClient = async (id: string) => {
     // Actualizar UI optimísticamente
-    queryClient.setQueryData(["clients", role, username], (prev: Client[] | undefined) => {
+    queryClient.setQueryData(["clients", role, username, statusFilter], (prev: Client[] | undefined) => {
       if (!prev) return [];
       return prev.filter(c => c.id !== id);
     });
@@ -314,7 +329,7 @@ export function useClients() {
   };
 
   const deleteAllClients = async () => {
-    queryClient.setQueryData(["clients", role, username], []);
+    queryClient.setQueryData(["clients", role, username, statusFilter], []);
     try {
       const { error } = await supabase.from("clients").delete().neq("id", "none_existent");
       if (error) throw error;

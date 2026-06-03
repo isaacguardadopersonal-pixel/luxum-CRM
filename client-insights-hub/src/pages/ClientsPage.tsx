@@ -11,11 +11,11 @@ import Papa from "papaparse";
 import { FloatingEmailComposer } from "@/components/FloatingEmailComposer";
 
 export default function ClientsPage() {
-  const { clients, loading, addClients, updateClient, deleteClient, pullFromSupabase, deleteAllClients } = useClients();
+  const [statusFilter, setStatusFilter] = useState("all");
+  const { clients, loading, addClients, updateClient, deleteClient, pullFromSupabase, deleteAllClients } = useClients(statusFilter);
   const { role, username } = useAuth();
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
@@ -115,7 +115,7 @@ export default function ClientsPage() {
   const [editNotesValue, setEditNotesValue] = useState("");
   const perPage = 15;
 
-  const statuses = ["all", "IMPORTANTE", "Website", "Current Customer", "Quoting", "Opportunities", "Not Interested"];
+  const statuses = ["all", "IMPORTANTE", "Website", "Current Customer", "Quoting", "Opportunities", "Not Interested", "Seguimiento"];
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -300,7 +300,7 @@ export default function ClientsPage() {
           .toLowerCase()
           .includes(search.toLowerCase());
       const matchesStatus = statusFilter === "all"
-        ? !["Opportunities", "Website", "IMPORTANTE"].includes(c.status)
+        ? !["Opportunities", "Website", "IMPORTANTE", "Seguimiento"].includes(c.status)
         : c.status === statusFilter;
       const matchesCompany = !filters.company || (c.products && c.products.length > 0 && c.products[0].company === filters.company);
       const matchesDLState = !filters.dlState || c.dlState === filters.dlState;
@@ -317,7 +317,7 @@ export default function ClientsPage() {
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {
-      all: clients.filter(c => !["Opportunities", "Website", "IMPORTANTE"].includes(c.status)).length
+      all: clients.filter(c => !["Opportunities", "Website", "IMPORTANTE", "Seguimiento"].includes(c.status)).length
     };
     clients.forEach((c) => {
       counts[c.status] = (counts[c.status] || 0) + 1;
@@ -422,7 +422,7 @@ export default function ClientsPage() {
       {/* Status Tabs */}
       <div className="flex gap-3 mb-6 flex-wrap">
         {statuses.map((s) => {
-          const label = s === "all" ? t("status.all") : s === "IMPORTANTE" ? "Importante" : s === "Website" ? "Website" : s === "Current Customer" ? t("status.actives") : s === "Quoting" ? t("status.quoting") : s === "Opportunities" ? t("status.opportunities_plural") : t("status.not_interested_plural");
+          const label = s === "all" ? t("status.all") : s === "IMPORTANTE" ? "Importante" : s === "Website" ? "Website" : s === "Current Customer" ? t("status.actives") : s === "Quoting" ? t("status.quoting") : s === "Opportunities" ? t("status.opportunities_plural") : s === "Seguimiento" ? "Seguimiento" : t("status.not_interested_plural");
           const colorClass =
             s === "IMPORTANTE" ? "bg-purple-500/15 text-purple-400 border-purple-500/20" :
               s === "Website" ? "bg-blue-500/15 text-blue-400 border-blue-500/20" :
@@ -430,7 +430,8 @@ export default function ClientsPage() {
                   s === "Quoting" ? "bg-warning/15 text-warning border-warning/20" :
                     s === "Opportunities" ? "bg-info/15 text-info border-info/20" :
                       s === "Not Interested" ? "bg-destructive/15 text-destructive border-destructive/20" :
-                        "bg-secondary text-secondary-foreground border-border";
+                        s === "Seguimiento" ? "status-seguimiento text-amber-400 border-amber-500/20 bg-amber-500/15" :
+                          "bg-secondary text-secondary-foreground border-border";
           return (
             <button
               key={s}
@@ -564,7 +565,7 @@ export default function ClientsPage() {
                     <td className="px-4 py-3 text-sm text-muted-foreground">{primaryProduct?.expirationDate || "—"}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getStatusColor(client.status)}`}>
-                        {client.status === "IMPORTANTE" ? "Importante" : client.status === "Website" ? "Website" : client.status === "Current Customer" ? t("status.active") : client.status === "Quoting" ? t("status.quoting") : client.status === "Opportunities" ? t("status.opportunities") : client.status === "Not Interested" ? t("status.not_interested") : client.status}
+                        {client.status === "IMPORTANTE" ? "Importante" : client.status === "Website" ? "Website" : client.status === "Current Customer" ? t("status.active") : client.status === "Quoting" ? t("status.quoting") : client.status === "Opportunities" ? t("status.opportunities") : client.status === "Not Interested" ? t("status.not_interested") : client.status === "Seguimiento" ? "Seguimiento" : client.status}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -663,7 +664,8 @@ export default function ClientsPage() {
                           detail.status === "Quoting" ? t("status.quoting") :
                             detail.status === "Opportunities" ? t("status.opportunities") :
                               detail.status === "Not Interested" ? t("status.not_interested") :
-                                detail.status}
+                                detail.status === "Seguimiento" ? "Seguimiento" :
+                                  detail.status}
                         {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
                           <ChevronDown className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
                         )}
@@ -681,6 +683,7 @@ export default function ClientsPage() {
                                 { val: "Not Interested", label: t("status.not_interested") },
                                 { val: "IMPORTANTE", label: "Importante" },
                                 { val: "Website", label: "Website" },
+                                { val: "Seguimiento", label: "Seguimiento" },
                               ].map(opt => (
                                 <button
                                   key={opt.val}
@@ -1133,6 +1136,7 @@ export default function ClientsPage() {
                       <option value="Not Interested">Not Interested</option>
                       <option value="IMPORTANTE">IMPORTANTE</option>
                       <option value="Website">Website</option>
+                      <option value="Seguimiento">Seguimiento</option>
                     </select>
                   </div>
                   <div>
@@ -1310,6 +1314,9 @@ export default function ClientsPage() {
                       <option value="Quoting">Quoting</option>
                       <option value="Opportunities">Opportunities</option>
                       <option value="Not Interested">Not Interested</option>
+                      <option value="IMPORTANTE">IMPORTANTE</option>
+                      <option value="Website">Website</option>
+                      <option value="Seguimiento">Seguimiento</option>
                     </select>
                   </div>
                   <div>

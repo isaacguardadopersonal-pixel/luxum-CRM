@@ -145,6 +145,7 @@ export function getStatusColor(status: string): string {
     case "Not Interested": return "status-not-interested";
     case "IMPORTANTE": return "status-importante";
     case "Website": return "status-website";
+    case "Seguimiento": return "status-seguimiento";
     default: return "status-quoting";
   }
 }
@@ -158,45 +159,68 @@ export interface ClientPremiumSummary {
 }
 
 /**
- * Calcula el resumen financiero (libro de negocios) de un mes específico (ej. "05/2026")
+ * Calcula el resumen financiero (libro de negocios) de un mes específico (ej. "05/2026", "2026-05") o histórico ("all")
  */
 export function calculateMonthlyBookOfBusiness(
   clients: Client[],
-  targetMonth: string
+  targetMonth?: string
 ): { activeTotal: number; historicalTotal: number; lossTotal: number; netTotal: number } {
   let activeTotal = 0;
   let historicalTotal = 0;
   let lossTotal = 0;
+
+  const isAll = !targetMonth || targetMonth === 'all';
+
+  // Normalizar targetMonth a MM/YYYY si viene en formato YYYY-MM
+  let normalizedTargetMonth = targetMonth || '';
+  if (targetMonth && targetMonth.includes('-')) {
+    const parts = targetMonth.split('-');
+    if (parts.length === 2) {
+      normalizedTargetMonth = `${parts[1].padStart(2, '0')}/${parts[0]}`;
+    }
+  }
 
   clients.forEach(client => {
     if (!client.products) return;
 
     client.products.forEach(product => {
       const isSameMonth = (dateStr?: string | null) => {
+        if (isAll) return true;
         if (!dateStr) return false;
         // Permite validar formatos de fecha comunes (MM/DD/YYYY o YYYY-MM-DD)
         const parts = dateStr.split('/');
         if (parts.length === 3) {
           const monthYear = `${parts[0].padStart(2, '0')}/${parts[2]}`;
-          return monthYear === targetMonth;
+          return monthYear === normalizedTargetMonth;
+        }
+        const hyphenParts = dateStr.split('-');
+        if (hyphenParts.length === 3) {
+          const monthYear = `${hyphenParts[1].padStart(2, '0')}/${hyphenParts[0]}`;
+          return monthYear === normalizedTargetMonth;
         }
         return false;
       };
 
-      if (product.status === 'Activa' && isSameMonth(product.effectiveDate)) {
-        activeTotal += product.premium || 0;
+      if (product.status === 'Activa') {
+        if (isAll || isSameMonth(product.effectiveDate)) {
+          activeTotal += product.premium || 0;
+        }
       }
 
-      if (product.status === 'Renovada' && isSameMonth(product.effectiveDate)) {
-        historicalTotal += product.premium || 0;
+      if (product.status === 'Renovada') {
+        if (isAll || isSameMonth(product.effectiveDate)) {
+          historicalTotal += product.premium || 0;
+        }
       }
 
       if (product.status === 'Cancelada' && product.cancelationDate) {
         const cancelDateObj = new Date(product.cancelationDate);
         const expDateObj = product.expirationDate ? new Date(product.expirationDate) : null;
 
-        if (expDateObj && cancelDateObj < expDateObj && isSameMonth(product.cancelationDate)) {
-          lossTotal += product.premium || 0;
+        if (expDateObj && cancelDateObj < expDateObj) {
+          if (isAll || isSameMonth(product.cancelationDate)) {
+            lossTotal += product.premium || 0;
+          }
         }
       }
     });
