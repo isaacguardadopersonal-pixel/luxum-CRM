@@ -816,6 +816,35 @@ export default function ClientsPage() {
                       );
                     })()}
 
+                    {/* Notas del Cliente */}
+                    <div className="mt-6 pt-6 border-t border-border/30 animate-fade-in">
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="text-sm font-bold text-primary uppercase tracking-wider">Notas del Cliente</h4>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setEditNotesValue(detail.notes || "");
+                            setShowEditNotesModal(true);
+                          }}
+                          className="flex items-center gap-2 px-4 py-1.5 bg-[#fca311]/15 text-[#fca311] border border-[#fca311]/25 hover:bg-[#fca311]/25 rounded-lg text-xs font-bold transition-all hover:scale-105"
+                        >
+                          <Edit className="w-3 h-3" /> Editar Notas
+                        </button>
+                      </div>
+                      {detail.notes ? (
+                        <p className="text-sm text-foreground bg-[#1e2343]/30 p-5 rounded-xl border border-border/30 whitespace-pre-wrap leading-relaxed shadow-inner">
+                          {detail.notes}
+                        </p>
+                      ) : (
+                        <div className="flex items-center justify-center p-6 bg-[#1e2343]/20 rounded-xl border border-border/20 border-dashed">
+                          <div className="text-center">
+                            <p className="text-sm font-medium text-foreground mb-1">Este cliente no tiene notas.</p>
+                            <p className="text-xs text-muted-foreground">Usa el botón "Editar Notas" para agregar información adicional importante.</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     {detail.drivers && detail.drivers.length > 0 && (
                       <div className="pt-4 border-t border-border/30">
                         <span className="text-sm text-foreground mb-3 block font-semibold">Conductores Adicionales:</span>
