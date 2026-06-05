@@ -1597,7 +1597,7 @@ export default function ClientsPage() {
 
       {/* Edit Notes Modal */}
       {showEditNotesModal && detail && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setShowEditNotesModal(false)}>
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
           <div className="glass-card max-w-2xl w-full p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-foreground mb-4">Editar Notas del Cliente</h2>
             <textarea
@@ -2096,7 +2096,7 @@ export default function ClientsPage() {
 
       {/* Add Note Modal */}
       {showAddNoteModal && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4" onClick={() => setShowAddNoteModal(false)}>
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
           <div className="glass-card max-w-md w-full p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-foreground mb-4">Agregar Nota al Seguimiento</h2>
             <div className="space-y-4">
