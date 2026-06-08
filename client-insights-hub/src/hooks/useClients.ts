@@ -215,6 +215,7 @@ export function useClients(statusFilter = "all") {
             }
           }
         }
+        await queryClient.invalidateQueries({ queryKey: ["clients"] });
       } catch (error) {
         console.error("Error sincronizando (Bulk) con Supabase:", error);
         // Podríamos invalidar la query si falla, pero para CRM lo dejamos así
@@ -301,6 +302,7 @@ export function useClients(statusFilter = "all") {
              await supabase.from("add_driver").delete().eq("client_id", clientToSync.id);
            }
         }
+        await queryClient.invalidateQueries({ queryKey: ["clients"] });
       } catch (err) {
         console.error("Error actualizando en Supabase:", err);
         await queryClient.invalidateQueries({ queryKey: ["clients"] });
@@ -319,6 +321,7 @@ export function useClients(statusFilter = "all") {
       const { error } = await supabase.from("clients").delete().eq("id", id);
       if (error) throw error;
       await supabase.from("products").delete().eq("client_id", id);
+      await queryClient.invalidateQueries({ queryKey: ["clients"] });
     } catch (err) {
       console.error("Error eliminando de Supabase:", err);
       await queryClient.invalidateQueries({ queryKey: ["clients"] });

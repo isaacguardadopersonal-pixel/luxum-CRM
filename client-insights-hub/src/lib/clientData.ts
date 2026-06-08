@@ -301,14 +301,14 @@ export function isClientActive(client: Client): boolean {
  * Obtiene el estado efectivo del cliente (computado a partir de sus pólizas o el estado de prospecto).
  */
 export function getEffectiveStatus(client: Client): string {
+  if (client.status === "Not Interested" || client.status === "Descartado") {
+    return "Descartado";
+  }
   if (isClientActive(client)) {
     return "Current Customer";
   }
   if (client.status === "IMPORTANTE") {
     return "Opportunities";
-  }
-  if (client.status === "Not Interested" || client.status === "Descartado") {
-    return "Descartado";
   }
   return client.status;
 }

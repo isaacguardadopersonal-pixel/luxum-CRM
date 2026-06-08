@@ -683,7 +683,9 @@ export default function ClientsPage() {
             <thead>
               <tr className="border-b border-border/50">
                 <th className="text-left text-xs font-medium text-muted-foreground px-4 py-3 uppercase tracking-wider">{t("clients.table.client")}</th>
-                <th className="text-left text-xs font-medium text-muted-foreground px-4 py-3 uppercase tracking-wider">{t("clients.table.company")}</th>
+                <th className="text-left text-xs font-medium text-muted-foreground px-4 py-3 uppercase tracking-wider">
+                  {statusFilter === "Descartado" ? "Motivo" : t("clients.table.company")}
+                </th>
                 <th className="text-left text-xs font-medium text-muted-foreground px-4 py-3 uppercase tracking-wider">{t("clients.table.type")}</th>
                 <th className="text-left text-xs font-medium text-muted-foreground px-4 py-3 uppercase tracking-wider">{t("clients.table.premium")}</th>
                 <th className="text-left text-xs font-medium text-muted-foreground px-4 py-3 uppercase tracking-wider">{t("clients.table.expiration")}</th>
@@ -715,7 +717,9 @@ export default function ClientsPage() {
                         <p className="text-xs text-muted-foreground">{client.email || client.workPhone}</p>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">{primaryProduct?.company || "—"}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      {statusFilter === "Descartado" ? (client.motivo_descarte || "—") : (primaryProduct?.company || "—")}
+                    </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
                       {productCount > 1 ? (
                         <span className="px-2 py-0.5 bg-primary/20 text-primary rounded-md font-medium text-xs">Bundle</span>
