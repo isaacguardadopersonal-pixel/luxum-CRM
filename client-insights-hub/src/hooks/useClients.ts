@@ -37,16 +37,12 @@ export function useClients(statusFilter = "all") {
 
           if (statusFilter === "Seguimiento") {
             query = query.eq("status", "Seguimiento");
-            if (role !== 'admin') {
+            if (role === 'invitado') {
               query = query.eq("created_by", userRef);
             }
           } else {
-            if (role !== 'admin') {
-              query = query.or(`status.neq.Seguimiento,created_by.eq.${userRef}`);
-
-              if (role === 'invitado') {
-                query = query.eq('created_by', userRef);
-              }
+            if (role === 'invitado') {
+              query = query.eq('created_by', userRef);
             }
           }
 

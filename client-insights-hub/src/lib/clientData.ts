@@ -64,6 +64,7 @@ export interface Client {
   logs: ChangeLog[];
   drivers?: Driver[];
   created_by?: string;
+  motivo_descarte?: string;
 }
 
 export interface Driver {
@@ -142,7 +143,8 @@ export function getStatusColor(status: string): string {
     case "Current Customer": return "status-current";
     case "Quoting": return "status-quoting";
     case "Opportunities": return "status-opportunities";
-    case "Not Interested": return "status-not-interested";
+    case "Not Interested":
+    case "Descartado": return "status-not-interested";
     case "IMPORTANTE": return "status-importante";
     case "Website": return "status-website";
     case "Seguimiento": return "status-seguimiento";
@@ -285,4 +287,28 @@ export function getClientLoyaltyRank(client: Client): { rank: LoyaltyRank; color
   } else {
     return { rank: 'Plata', color: 'text-slate-400 bg-slate-400/10 border-slate-400/30', count: renewalCount };
   }
+}
+
+/**
+ * Evalúa si el cliente tiene al menos una póliza con estado Activa o Renovada.
+ */
+export function isClientActive(client: Client): boolean {
+  const products = client.products || [];
+  return products.some(p => p.status === "Activa" || p.status === "Renovada");
+}
+
+/**
+ * Obtiene el estado efectivo del cliente (computado a partir de sus pólizas o el estado de prospecto).
+ */
+export function getEffectiveStatus(client: Client): string {
+  if (isClientActive(client)) {
+    return "Current Customer";
+  }
+  if (client.status === "IMPORTANTE") {
+    return "Opportunities";
+  }
+  if (client.status === "Not Interested" || client.status === "Descartado") {
+    return "Descartado";
+  }
+  return client.status;
 }

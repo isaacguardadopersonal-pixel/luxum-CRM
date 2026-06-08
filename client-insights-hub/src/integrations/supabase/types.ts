@@ -34,6 +34,7 @@ export type Database = {
           products: Json | null
           reminders: Json | null
           logs: Json | null
+          motivo_descarte: string | null
         }
         Insert: {
           id: string
@@ -54,6 +55,7 @@ export type Database = {
           products?: Json | null
           reminders?: Json | null
           logs?: Json | null
+          motivo_descarte?: string | null
         }
         Update: {
           id?: string
@@ -74,6 +76,7 @@ export type Database = {
           products?: Json | null
           reminders?: Json | null
           logs?: Json | null
+          motivo_descarte?: string | null
         }
       }
     }

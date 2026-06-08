@@ -4,11 +4,12 @@ import { CRMLayout } from "@/components/CRMLayout";
 import { useClients } from "@/hooks/useClients";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { getStatusColor, Client, Product, ChangeLog, Reminder, parseCSVRow, getClientPremiumSummary, getClientLoyaltyRank } from "@/lib/clientData";
+import { getStatusColor, Client, Product, ChangeLog, Reminder, parseCSVRow, getClientPremiumSummary, getClientLoyaltyRank, isClientActive, getEffectiveStatus } from "@/lib/clientData";
 import { Search, Filter, Download, Plus, ChevronLeft, ChevronRight, ChevronDown, Phone, Mail, Eye, Upload, Edit, Trash2, RefreshCw } from "lucide-react";
 import * as XLSX from 'xlsx';
 import Papa from "papaparse";
 import { FloatingEmailComposer } from "@/components/FloatingEmailComposer";
+import { useGoogleLogin } from "@react-oauth/google";
 
 export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
@@ -62,6 +63,165 @@ export default function ClientsPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelProductId, setCancelProductId] = useState<string>("");
   const [cancelDate, setCancelDate] = useState<string>("");
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [discardReason, setDiscardReason] = useState("");
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    clientId: string;
+    newStatus: string;
+    context: "detail" | "edit" | "add";
+    editForm?: any;
+    addForm?: any;
+  } | null>(null);
+  const [googleCalendarToken, setGoogleCalendarToken] = useState<string | null>(null);
+  const [syncGoogleCalendar, setSyncGoogleCalendar] = useState(false);
+  const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
+  const [pendingReminder, setPendingReminder] = useState<any>(null);
+
+  const loginCalendar = useGoogleLogin({
+    scope: 'https://www.googleapis.com/auth/calendar.events',
+    onSuccess: async (tokenResponse) => {
+      setGoogleCalendarToken(tokenResponse.access_token);
+      if (pendingReminder) {
+        await saveReminderWithGoogle(pendingReminder, tokenResponse.access_token);
+      }
+    },
+    onError: () => {
+      alert("Error al iniciar sesión con Google para el Calendario.");
+      setSyncGoogleCalendar(false);
+      setIsSyncingCalendar(false);
+    }
+  });
+
+  const saveReminderWithGoogle = async (reminderData: any, token: string) => {
+    setIsSyncingCalendar(true);
+    try {
+      const startAndEndDate = parseMMDDYYYYToYYYYMMDD(reminderData.date);
+      const eventPayload = {
+        summary: `Recordatorio Luxum: ${reminderData.notes}`,
+        description: `Recordatorio para el cliente: ${detail?.firstName} ${detail?.lastName}\nTel: ${detail?.workPhone || '—'}\nEmail: ${detail?.email || '—'}`,
+        start: {
+          date: startAndEndDate
+        },
+        end: {
+          date: startAndEndDate
+        }
+      };
+
+      const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(eventPayload)
+      });
+
+      if (!response.ok) {
+        throw new Error('Google API Error');
+      }
+
+      if (detail) {
+        const existingReminders = detail.reminders || [];
+        const updatedReminders = [...existingReminders, {
+          id: reminderData.id,
+          date: reminderData.date,
+          notes: `${reminderData.notes} (Sincronizado con Google Calendar)`,
+          createdAt: reminderData.createdAt
+        }];
+        await updateClient(detail.id, { reminders: updatedReminders });
+      }
+      setShowReminderModal(false);
+      setReminderForm({});
+      setSyncGoogleCalendar(false);
+      setPendingReminder(null);
+      alert("¡Recordatorio agendado y sincronizado en Google Calendar!");
+    } catch (err) {
+      console.error(err);
+      alert("Error al sincronizar con Google Calendar. Se agendó localmente.");
+      if (detail) {
+        const existingReminders = detail.reminders || [];
+        const updatedReminders = [...existingReminders, reminderData];
+        await updateClient(detail.id, { reminders: updatedReminders });
+      }
+      setShowReminderModal(false);
+      setReminderForm({});
+      setSyncGoogleCalendar(false);
+      setPendingReminder(null);
+    } finally {
+      setIsSyncingCalendar(false);
+    }
+  };
+
+  const parseMMDDYYYYToYYYYMMDD = (dateStr: string) => {
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+    }
+    return dateStr;
+  };
+
+  const handleConfirmDiscard = async () => {
+    if (!discardReason || !pendingStatusChange) return;
+
+    const { clientId, context, editForm: pEditForm, addForm: pAddForm } = pendingStatusChange;
+
+    try {
+      if (context === "detail") {
+        const targetClient = clients.find(c => c.id === clientId);
+        const updatedLogs = [
+          ...(targetClient?.logs || []),
+          {
+            id: Math.random().toString(36).substring(2, 15),
+            date: new Date().toISOString(),
+            reason: `[${username || 'Usuario'}] Descartó el cliente. Motivo: ${discardReason}`
+          }
+        ];
+        await updateClient(clientId, {
+          status: "Descartado",
+          motivo_descarte: discardReason,
+          logs: updatedLogs
+        });
+        setShowStatusDropdown(false);
+      } else if (context === "edit") {
+        const targetClient = clients.find(c => c.id === clientId);
+        const updatedLogs = [
+          ...(targetClient?.logs || []),
+          {
+            id: Math.random().toString(36).substring(2, 15),
+            date: new Date().toISOString(),
+            reason: `[${username || 'Usuario'}] Descartó el cliente. Motivo: ${discardReason}`
+          }
+        ];
+        await updateClient(clientId, {
+          ...pEditForm,
+          status: "Descartado",
+          motivo_descarte: discardReason,
+          logs: updatedLogs
+        });
+        setEditingClient(null);
+      } else if (context === "add") {
+        setAddForm({
+          ...pAddForm,
+          status: "Descartado",
+          motivo_descarte: discardReason
+        });
+      }
+    } catch (err) {
+      console.error("Error al descartar el cliente:", err);
+      alert("Hubo un error al guardar el descarte.");
+    } finally {
+      setShowDiscardModal(false);
+      setDiscardReason("");
+      setPendingStatusChange(null);
+    }
+  };
+
+  const handleCancelDiscard = () => {
+    setShowDiscardModal(false);
+    setDiscardReason("");
+    setPendingStatusChange(null);
+    setShowStatusDropdown(false);
+  };
   const productCategories = ["Auto", "Home", "Rent", "Comercial", "Commercial auto", "Life"];
   const formatPhoneInput = (value: string): string => {
     let digits = value.replace(/\D/g, "");
@@ -115,7 +275,7 @@ export default function ClientsPage() {
   const [editNotesValue, setEditNotesValue] = useState("");
   const perPage = 15;
 
-  const statuses = ["all", "IMPORTANTE", "Website", "Current Customer", "Quoting", "Opportunities", "Not Interested", "Seguimiento"];
+  const statuses = ["all", "Website", "Current Customer", "Quoting", "Opportunities", "Seguimiento", "Descartado"];
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -149,7 +309,7 @@ export default function ClientsPage() {
           parsed.created_by = 'unknown';
           if (globalReferral) {
             if (!parsed.referredBy) parsed.referredBy = globalReferral;
-            parsed.status = 'IMPORTANTE';
+            parsed.status = 'Opportunities';
           }
           return parsed;
         });
@@ -299,9 +459,10 @@ export default function ClientsPage() {
         `${c.firstName} ${c.lastName} ${c.products?.[0]?.policyNumber || ""} ${c.email} ${c.products?.[0]?.company || ""} ${c.referredBy || ""}`
           .toLowerCase()
           .includes(search.toLowerCase());
+      const effStatus = getEffectiveStatus(c);
       const matchesStatus = statusFilter === "all"
-        ? !["Opportunities", "Website", "IMPORTANTE", "Seguimiento"].includes(c.status)
-        : c.status === statusFilter;
+        ? !["Opportunities", "Website", "IMPORTANTE", "Seguimiento"].includes(effStatus)
+        : effStatus === statusFilter;
       const matchesCompany = !filters.company || (c.products && c.products.length > 0 && c.products[0].company === filters.company);
       const matchesDLState = !filters.dlState || c.dlState === filters.dlState;
       return matchesSearch && matchesStatus && matchesCompany && matchesDLState;
@@ -316,12 +477,15 @@ export default function ClientsPage() {
   const detail = selectedClient ? clients.find(c => c.id === selectedClient) || null : null;
 
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      all: clients.filter(c => !["Opportunities", "Website", "IMPORTANTE", "Seguimiento"].includes(c.status)).length
-    };
+    const counts: Record<string, number> = {};
     clients.forEach((c) => {
-      counts[c.status] = (counts[c.status] || 0) + 1;
+      const effStatus = getEffectiveStatus(c);
+      counts[effStatus] = (counts[effStatus] || 0) + 1;
     });
+    counts.all = clients.filter(c => {
+      const effStatus = getEffectiveStatus(c);
+      return !["Opportunities", "Website", "IMPORTANTE", "Seguimiento"].includes(effStatus);
+    }).length;
     return counts;
   }, [clients]);
 
@@ -422,14 +586,14 @@ export default function ClientsPage() {
       {/* Status Tabs */}
       <div className="flex gap-3 mb-6 flex-wrap">
         {statuses.map((s) => {
-          const label = s === "all" ? t("status.all") : s === "IMPORTANTE" ? "Importante" : s === "Website" ? "Website" : s === "Current Customer" ? t("status.actives") : s === "Quoting" ? t("status.quoting") : s === "Opportunities" ? t("status.opportunities_plural") : s === "Seguimiento" ? "Seguimiento" : t("status.not_interested_plural");
+          const label = s === "all" ? t("status.all") : s === "IMPORTANTE" ? "Importante" : s === "Website" ? "Website" : s === "Current Customer" ? t("status.actives") : s === "Quoting" ? t("status.quoting") : s === "Opportunities" ? t("status.opportunities_plural") : s === "Seguimiento" ? "Seguimiento" : s === "Descartado" ? "Descartado" : t("status.not_interested_plural");
           const colorClass =
             s === "IMPORTANTE" ? "bg-purple-500/15 text-purple-400 border-purple-500/20" :
               s === "Website" ? "bg-blue-500/15 text-blue-400 border-blue-500/20" :
                 s === "Current Customer" ? "bg-success/15 text-success border-success/20" :
                   s === "Quoting" ? "bg-warning/15 text-warning border-warning/20" :
                     s === "Opportunities" ? "bg-info/15 text-info border-info/20" :
-                      s === "Not Interested" ? "bg-destructive/15 text-destructive border-destructive/20" :
+                      s === "Not Interested" || s === "Descartado" ? "bg-destructive/15 text-destructive border-destructive/20" :
                         s === "Seguimiento" ? "status-seguimiento text-amber-400 border-amber-500/20 bg-amber-500/15" :
                           "bg-secondary text-secondary-foreground border-border";
           return (
@@ -564,8 +728,18 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">{primaryProduct?.expirationDate || "—"}</td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getStatusColor(client.status)}`}>
-                        {client.status === "IMPORTANTE" ? "Importante" : client.status === "Website" ? "Website" : client.status === "Current Customer" ? t("status.active") : client.status === "Quoting" ? t("status.quoting") : client.status === "Opportunities" ? t("status.opportunities") : client.status === "Not Interested" ? t("status.not_interested") : client.status === "Seguimiento" ? "Seguimiento" : client.status}
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getStatusColor(getEffectiveStatus(client))}`}>
+                        {(() => {
+                          const effStatus = getEffectiveStatus(client);
+                          return effStatus === "Current Customer" ? t("status.active") :
+                                 effStatus === "Quoting" ? t("status.quoting") :
+                                 effStatus === "Opportunities" ? t("status.opportunities") :
+                                 effStatus === "Descartado" ? "Descartado" :
+                                 effStatus === "Seguimiento" ? "Seguimiento" :
+                                 effStatus === "IMPORTANTE" ? "Importante" :
+                                 effStatus === "Website" ? "Website" :
+                                 effStatus;
+                        })()}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -652,54 +826,75 @@ export default function ClientsPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <button
-                        onClick={() => {
-                          if (role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') {
-                            setShowStatusDropdown(!showStatusDropdown);
-                          }
-                        }}
-                        className={`text-xs font-medium px-4 py-1.5 rounded-full border transition-colors flex items-center gap-1.5 shadow-sm ${getStatusColor(detail.status)} ${(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') ? 'cursor-pointer hover:border-border/80' : 'cursor-not-allowed opacity-80'}`}
-                      >
-                        {detail.status === "Current Customer" ? t("status.active") :
-                          detail.status === "Quoting" ? t("status.quoting") :
-                            detail.status === "Opportunities" ? t("status.opportunities") :
-                              detail.status === "Not Interested" ? t("status.not_interested") :
-                                detail.status === "Seguimiento" ? "Seguimiento" :
-                                  detail.status}
-                        {(role === 'admin' || detail.created_by === username || detail.created_by === 'unknown') && (
-                          <ChevronDown className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
-                        )}
-                      </button>
-
-                      {showStatusDropdown && (
-                        <>
-                          <div className="fixed inset-0 z-40" onClick={() => setShowStatusDropdown(false)}></div>
-                          <div className="absolute top-full mt-2 left-0 w-44 bg-[#1e2343] border border-border/40 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden z-50 animate-fade-in backdrop-blur-xl">
-                            <div className="p-1">
-                              {[
-                                { val: "Current Customer", label: t("status.active") },
-                                { val: "Quoting", label: t("status.quoting") },
-                                { val: "Opportunities", label: t("status.opportunities") },
-                                { val: "Not Interested", label: t("status.not_interested") },
-                                { val: "IMPORTANTE", label: "Importante" },
-                                { val: "Website", label: "Website" },
-                                { val: "Seguimiento", label: "Seguimiento" },
-                              ].map(opt => (
-                                <button
-                                  key={opt.val}
-                                  onClick={() => {
-                                    updateClient(detail.id, { status: opt.val });
-                                    setShowStatusDropdown(false);
-                                  }}
-                                  className={`w-full text-left px-3 py-2 text-xs font-medium transition-all rounded-lg flex items-center ${detail.status === opt.val ? 'bg-primary/20 text-primary' : 'text-foreground/80 hover:bg-white/5 hover:text-foreground'}`}
-                                >
-                                  {opt.label}
-                                </button>
-                              ))}
+                      {(() => {
+                        const isActive = isClientActive(detail);
+                        const isEditable = !isActive && (role === 'admin' || detail.created_by === username || detail.created_by === 'unknown');
+                        const currentStatus = getEffectiveStatus(detail);
+                        
+                        return (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  if (isEditable) {
+                                    setShowStatusDropdown(!showStatusDropdown);
+                                  }
+                                }}
+                                disabled={!isEditable}
+                                className={`text-xs font-medium px-4 py-1.5 rounded-full border transition-colors flex items-center gap-1.5 shadow-sm ${getStatusColor(currentStatus)} ${isEditable ? 'cursor-pointer hover:border-border/80' : 'cursor-not-allowed opacity-80'}`}
+                              >
+                                {currentStatus === "Current Customer" ? t("status.active") :
+                                  currentStatus === "Quoting" ? t("status.quoting") :
+                                    currentStatus === "Opportunities" ? t("status.opportunities") :
+                                      currentStatus === "Descartado" ? "Descartado" :
+                                        currentStatus === "Seguimiento" ? "Seguimiento" :
+                                          currentStatus}
+                                {isEditable && (
+                                  <ChevronDown className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
+                                )}
+                              </button>
+                              {isActive && (
+                                <span className="text-[11px] text-muted-foreground italic">
+                                  (Automático por tener pólizas vigentes)
+                                </span>
+                              )}
                             </div>
-                          </div>
-                        </>
-                      )}
+
+                            {showStatusDropdown && isEditable && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setShowStatusDropdown(false)}></div>
+                                <div className="absolute top-full mt-2 left-0 w-44 bg-[#1e2343] border border-border/40 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] overflow-hidden z-50 animate-fade-in backdrop-blur-xl">
+                                  <div className="p-1">
+                                    {[
+                                      { val: "Opportunities", label: t("status.opportunities") },
+                                      { val: "Seguimiento", label: "Seguimiento" },
+                                      { val: "Quoting", label: t("status.quoting") },
+                                      { val: "Website", label: "Website" },
+                                      { val: "Descartado", label: "Descartado" },
+                                    ].map(opt => (
+                                      <button
+                                        key={opt.val}
+                                        onClick={() => {
+                                          if (opt.val === "Descartado") {
+                                            setPendingStatusChange({ clientId: detail.id, newStatus: "Descartado", context: "detail" });
+                                            setShowDiscardModal(true);
+                                          } else {
+                                            updateClient(detail.id, { status: opt.val });
+                                          }
+                                          setShowStatusDropdown(false);
+                                        }}
+                                        className={`w-full text-left px-3 py-2 text-xs font-medium transition-all rounded-lg flex items-center ${detail.status === opt.val ? 'bg-primary/20 text-primary' : 'text-foreground/80 hover:bg-white/5 hover:text-foreground'}`}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -796,6 +991,12 @@ export default function ClientsPage() {
                           {getClientPremiumSummary(detail).visualString}
                         </span>
                       </div>
+                      {(detail.status === "Descartado" || detail.status === "Not Interested") && detail.motivo_descarte && (
+                        <div className="flex justify-between items-center p-4 border-t border-border/30 hover:bg-secondary/30 transition-colors bg-destructive/5">
+                          <span className="text-sm font-bold text-destructive uppercase tracking-wider">Motivo de Descarte</span>
+                          <span className="text-base font-semibold text-destructive">{detail.motivo_descarte}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Reporte de Fidelización */}
@@ -1157,15 +1358,44 @@ export default function ClientsPage() {
                     <input type="text" value={editForm.lastName || ""} onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50" />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">{t("clients.table.status")}</label>
-                    <select value={editForm.status || ""} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50">
-                      <option value="Current Customer">Current Customer</option>
-                      <option value="Quoting">Quoting</option>
-                      <option value="Opportunities">Opportunities</option>
-                      <option value="Not Interested">Not Interested</option>
-                      <option value="IMPORTANTE">IMPORTANTE</option>
-                      <option value="Website">Website</option>
-                      <option value="Seguimiento">Seguimiento</option>
+                    <label className="text-xs text-muted-foreground mb-1 block">
+                      {t("clients.table.status")}
+                      {detail && isClientActive(detail) && (
+                        <span className="text-[10px] text-muted-foreground ml-1 font-normal italic">
+                          (Automático por pólizas)
+                        </span>
+                      )}
+                    </label>
+                    <select
+                      value={detail && isClientActive(detail) ? "Current Customer" : (editForm.status || "")}
+                      disabled={detail && isClientActive(detail)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "Descartado") {
+                          setPendingStatusChange({
+                            clientId: detail ? detail.id : "",
+                            newStatus: "Descartado",
+                            context: "edit",
+                            editForm: { ...editForm, status: val }
+                          });
+                          setShowDiscardModal(true);
+                        } else {
+                          setEditForm({ ...editForm, status: val });
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-75 disabled:cursor-not-allowed"
+                    >
+                      {detail && isClientActive(detail) ? (
+                        <option value="Current Customer">{t("status.active")}</option>
+                      ) : (
+                        <>
+                          <option value="Opportunities">{t("status.opportunities")}</option>
+                          <option value="Seguimiento">Seguimiento</option>
+                          <option value="Quoting">{t("status.quoting")}</option>
+                          <option value="Website">Website</option>
+                          <option value="Descartado">Descartado</option>
+                        </>
+                      )}
                     </select>
                   </div>
                   <div>
@@ -1338,14 +1568,29 @@ export default function ClientsPage() {
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Estado</label>
-                    <select value={addForm.status || "Quoting"} onChange={(e) => setAddForm({ ...addForm, status: e.target.value })} className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50">
-                      <option value="Current Customer">Current Customer</option>
-                      <option value="Quoting">Quoting</option>
-                      <option value="Opportunities">Opportunities</option>
-                      <option value="Not Interested">Not Interested</option>
-                      <option value="IMPORTANTE">IMPORTANTE</option>
-                      <option value="Website">Website</option>
+                    <select
+                      value={addForm.status || "Quoting"}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "Descartado") {
+                          setPendingStatusChange({
+                            clientId: "",
+                            newStatus: "Descartado",
+                            context: "add",
+                            addForm: { ...addForm, status: val }
+                          });
+                          setShowDiscardModal(true);
+                        } else {
+                          setAddForm({ ...addForm, status: val });
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    >
+                      <option value="Opportunities">{t("status.opportunities")}</option>
                       <option value="Seguimiento">Seguimiento</option>
+                      <option value="Quoting">{t("status.quoting")}</option>
+                      <option value="Website">Website</option>
+                      <option value="Descartado">Descartado</option>
                     </select>
                   </div>
                   <div>
@@ -2084,6 +2329,18 @@ export default function ClientsPage() {
                   className="w-full h-24 px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
                 />
               </div>
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="checkbox"
+                  id="syncGoogleCalendar"
+                  checked={syncGoogleCalendar}
+                  onChange={(e) => setSyncGoogleCalendar(e.target.checked)}
+                  className="rounded border-border text-primary focus:ring-primary/50 cursor-pointer"
+                />
+                <label htmlFor="syncGoogleCalendar" className="text-xs text-muted-foreground select-none cursor-pointer flex items-center gap-1.5 font-medium hover:text-foreground transition-colors">
+                  Sincronizar con Google Calendar
+                </label>
+              </div>
             </div>
 
             <div className="flex gap-3 justify-end mt-6">
@@ -2094,7 +2351,8 @@ export default function ClientsPage() {
                 Cancelar
               </button>
               <button
-                onClick={() => {
+                disabled={isSyncingCalendar}
+                onClick={async () => {
                   if (!reminderForm.date || !reminderForm.notes) {
                     alert("Debes llenar la fecha y las notas.");
                     return;
@@ -2107,16 +2365,33 @@ export default function ClientsPage() {
                     createdAt: new Date().toISOString()
                   };
 
-                  if (detail) {
-                    const existingReminders = detail.reminders || [];
-                    const updatedReminders = [...existingReminders, newReminder];
-                    updateClient(detail.id, { reminders: updatedReminders });
+                  if (syncGoogleCalendar) {
+                    if (googleCalendarToken) {
+                      await saveReminderWithGoogle(newReminder, googleCalendarToken);
+                    } else {
+                      setPendingReminder(newReminder);
+                      loginCalendar();
+                    }
+                  } else {
+                    if (detail) {
+                      const existingReminders = detail.reminders || [];
+                      const updatedReminders = [...existingReminders, newReminder];
+                      await updateClient(detail.id, { reminders: updatedReminders });
+                    }
+                    setShowReminderModal(false);
+                    setReminderForm({});
                   }
-                  setShowReminderModal(false);
                 }}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+                className={`px-4 py-2 text-primary-foreground rounded-lg text-sm font-medium transition-opacity flex items-center gap-1.5 ${isSyncingCalendar ? 'opacity-70 cursor-not-allowed bg-primary/80' : 'bg-primary hover:opacity-90'}`}
               >
-                Agendar
+                {isSyncingCalendar ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                    Sincronizando...
+                  </>
+                ) : (
+                  "Agendar"
+                )}
               </button>
             </div>
           </div>
@@ -2318,6 +2593,51 @@ export default function ClientsPage() {
       {/* Email Script Modal */}
       {emailClient && (
         <FloatingEmailComposer client={emailClient} onClose={() => setEmailClient(null)} />
+      )}
+
+      {/* Discard Reason Modal */}
+      {showDiscardModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[80] flex items-center justify-center p-4" onClick={handleCancelDiscard}>
+          <div className="glass-card max-w-md w-full p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-foreground mb-4">Motivo de Descarte</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Selecciona obligatoriamente el motivo por el cual se descarta este prospecto.
+            </p>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Motivo de Pérdida <span className="text-destructive">*</span></label>
+                <select
+                  value={discardReason}
+                  onChange={(e) => setDiscardReason(e.target.value)}
+                  className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
+                >
+                  <option value="" disabled>Selecciona un motivo...</option>
+                  <option value="Precio alto">Precio alto</option>
+                  <option value="Falta de seguimiento / No responde">Falta de seguimiento / No responde</option>
+                  <option value="Se fue con competencia">Se fue con competencia</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleCancelDiscard}
+                className="px-4 py-2 bg-secondary text-foreground rounded-lg text-sm font-medium hover:bg-secondary/80 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={!discardReason}
+                onClick={handleConfirmDiscard}
+                className={`px-4 py-2 text-primary-foreground rounded-lg text-sm font-medium transition-colors ${!discardReason ? 'bg-primary/50 cursor-not-allowed' : 'bg-primary hover:opacity-90'}`}
+              >
+                Confirmar Descarte
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </CRMLayout>
   );

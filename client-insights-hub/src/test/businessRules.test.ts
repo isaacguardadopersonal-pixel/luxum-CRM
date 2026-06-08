@@ -3,7 +3,9 @@ import { Client, Product } from "@/lib/clientData";
 import {
   calculateMonthlyBookOfBusiness,
   getClientPremiumSummary,
-  getClientLoyaltyRank
+  getClientLoyaltyRank,
+  isClientActive,
+  getEffectiveStatus
 } from "@/lib/clientData";
 
 // Helper para crear clientes de prueba rápido
@@ -192,6 +194,35 @@ describe("Reglas de Negocio del CRM de Seguros", () => {
       const loyalty = getClientLoyaltyRank(client);
       expect(loyalty.rank).toBe("Diamante");
       expect(loyalty.count).toBe(6);
+    });
+  });
+
+  describe("Regla 4: Estado Activo Dinámico y de Prospecto", () => {
+    it("debe evaluar isClientActive como true si tiene al menos una póliza Activa o Renovada", () => {
+      const clientActive = createMockClient("c1", [{ status: "Activa" }]);
+      const clientRenewed = createMockClient("c2", [{ status: "Renovada" }]);
+      const clientCanceled = createMockClient("c3", [{ status: "Cancelada" }]);
+      
+      expect(isClientActive(clientActive)).toBe(true);
+      expect(isClientActive(clientRenewed)).toBe(true);
+      expect(isClientActive(clientCanceled)).toBe(false);
+    });
+
+    it("debe computar getEffectiveStatus como Current Customer si está activo por pólizas", () => {
+      const clientActive = createMockClient("c1", [{ status: "Activa" }]);
+      clientActive.status = "Quoting"; // Manual status set as Quoting
+      
+      expect(getEffectiveStatus(clientActive)).toBe("Current Customer");
+    });
+
+    it("debe computar getEffectiveStatus como Descartado si el estado manual es Not Interested o Descartado", () => {
+      const client1 = createMockClient("c1", []);
+      client1.status = "Not Interested";
+      const client2 = createMockClient("c2", []);
+      client2.status = "Descartado";
+      
+      expect(getEffectiveStatus(client1)).toBe("Descartado");
+      expect(getEffectiveStatus(client2)).toBe("Descartado");
     });
   });
 });

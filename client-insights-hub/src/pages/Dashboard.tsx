@@ -3,7 +3,7 @@ import { CRMLayout } from "@/components/CRMLayout";
 import { StatCard } from "@/components/StatCard";
 import { useClients } from "@/hooks/useClients";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getStatusColor, type Client, type Product, type Reminder } from "@/lib/clientData";
+import { getStatusColor, type Client, type Product, type Reminder, getEffectiveStatus } from "@/lib/clientData";
 import { Search, Users, DollarSign, FileText, UserPlus, Bell, Gift, Calendar, LogOut, BookOpen, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -94,9 +94,9 @@ export default function Dashboard() {
       return dateObj.getMonth() === filterMonth && dateObj.getFullYear() === filterYear;
     };
 
-    const current = clients.filter((c) => c.status === "Current Customer");
-    const quoting = clients.filter((c) => c.status === "Quoting");
-    const notInterested = clients.filter((c) => c.status === "Not Interested");
+    const current = clients.filter((c) => getEffectiveStatus(c) === "Current Customer");
+    const quoting = clients.filter((c) => getEffectiveStatus(c) === "Quoting");
+    const notInterested = clients.filter((c) => getEffectiveStatus(c) === "Descartado");
     
     // Filter products based on selected month
     const isProductValid = (p: Product) => {
@@ -211,7 +211,7 @@ export default function Dashboard() {
     const reemplazosPremium = reemplazosList.reduce((sum, item) => sum + (item.product.premium || 0), 0);
 
     const premiumClientsList = clients.map(c => {
-      if (c.status !== "Current Customer") return null;
+      if (getEffectiveStatus(c) !== "Current Customer") return null;
       const validProds = (c.products || []).filter(p => isProductEffectiveInMonth(p) && !p.status?.toLowerCase().includes('cancelad'));
       const sum = validProds.reduce((acc, p) => acc + (p.premium || 0), 0);
       if (sum === 0) return null;
@@ -219,7 +219,7 @@ export default function Dashboard() {
     }).filter(Boolean) as { client: Client, validProds: Product[], sum: number }[];
 
     const nuevosClientsList = clients.map(c => {
-      if (c.status !== "Current Customer") return null;
+      if (getEffectiveStatus(c) !== "Current Customer") return null;
       const validProds = (c.products || []).filter(p => isProductEffectiveInMonth(p) && (!p.tipo_movimiento || p.tipo_movimiento === 'Venta Nueva') && !p.status?.toLowerCase().includes('cancelad'));
       const sum = validProds.reduce((acc, p) => acc + (p.premium || 0), 0);
       if (sum === 0) return null;
@@ -227,7 +227,7 @@ export default function Dashboard() {
     }).filter(Boolean) as { client: Client, validProds: Product[], sum: number }[];
 
     const renovadosClientsList = clients.map(c => {
-      if (c.status !== "Current Customer") return null;
+      if (getEffectiveStatus(c) !== "Current Customer") return null;
       const validProds = (c.products || []).filter(p => isProductEffectiveInMonth(p) && p.tipo_movimiento === 'Renovación' && !p.status?.toLowerCase().includes('cancelad'));
       const sum = validProds.reduce((acc, p) => acc + (p.premium || 0), 0);
       if (sum === 0) return null;
@@ -235,7 +235,7 @@ export default function Dashboard() {
     }).filter(Boolean) as { client: Client, validProds: Product[], sum: number }[];
 
     const uniquePoliciesList = clients.map(c => {
-      if (c.status !== "Current Customer") return null;
+      if (getEffectiveStatus(c) !== "Current Customer") return null;
       const validProds = (c.products || []).filter(p => isProductEffectiveInMonth(p) && !p.status?.toLowerCase().includes('cancelad'));
       if (validProds.length !== 1) return null;
       return { client: c, product: validProds[0] };
