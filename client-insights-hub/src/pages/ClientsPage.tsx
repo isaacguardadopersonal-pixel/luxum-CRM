@@ -217,6 +217,14 @@ export default function ClientsPage() {
   };
 
   const handleCancelDiscard = () => {
+    if (pendingStatusChange) {
+      const { context, previousStatus } = pendingStatusChange;
+      if (context === "edit" && previousStatus) {
+        setEditForm(prev => ({ ...prev, status: previousStatus }));
+      } else if (context === "add" && previousStatus) {
+        setAddForm(prev => ({ ...prev, status: previousStatus }));
+      }
+    }
     setShowDiscardModal(false);
     setDiscardReason("");
     setPendingStatusChange(null);
@@ -832,7 +840,7 @@ export default function ClientsPage() {
                     <div className="relative">
                       {(() => {
                         const isActive = isClientActive(detail);
-                        const isEditable = !isActive && (role === 'admin' || detail.created_by === username || detail.created_by === 'unknown');
+                        const isEditable = role === 'admin' || detail.created_by === username || detail.created_by === 'unknown';
                         const currentStatus = getEffectiveStatus(detail);
                         
                         return (
@@ -857,7 +865,7 @@ export default function ClientsPage() {
                                   <ChevronDown className={`w-3.5 h-3.5 opacity-70 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
                                 )}
                               </button>
-                              {isActive && (
+                              {isActive && currentStatus !== "Descartado" && (
                                 <span className="text-[11px] text-muted-foreground italic">
                                   (Automático por tener pólizas vigentes)
                                 </span>
@@ -1364,15 +1372,14 @@ export default function ClientsPage() {
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">
                       {t("clients.table.status")}
-                      {detail && isClientActive(detail) && (
+                      {detail && isClientActive(detail) && editForm.status !== "Descartado" && editForm.status !== "Not Interested" && (
                         <span className="text-[10px] text-muted-foreground ml-1 font-normal italic">
                           (Automático por pólizas)
                         </span>
                       )}
                     </label>
                     <select
-                      value={detail && isClientActive(detail) ? "Current Customer" : (editForm.status || "")}
-                      disabled={detail && isClientActive(detail)}
+                      value={detail && isClientActive(detail) && editForm.status !== "Descartado" && editForm.status !== "Not Interested" ? "Current Customer" : (editForm.status || "")}
                       onChange={(e) => {
                         const val = e.target.value;
                         if (val === "Descartado") {
@@ -1380,26 +1387,23 @@ export default function ClientsPage() {
                             clientId: detail ? detail.id : "",
                             newStatus: "Descartado",
                             context: "edit",
-                            editForm: { ...editForm, status: val }
+                            editForm: { ...editForm, status: val },
+                            previousStatus: editForm.status || detail?.status || ""
                           });
+                          setEditForm({ ...editForm, status: val });
                           setShowDiscardModal(true);
                         } else {
                           setEditForm({ ...editForm, status: val });
                         }
                       }}
-                      className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-75 disabled:cursor-not-allowed"
+                      className="w-full px-3 py-2 bg-secondary rounded-lg text-sm text-foreground border border-border focus:outline-none focus:ring-1 focus:ring-primary/50"
                     >
-                      {detail && isClientActive(detail) ? (
-                        <option value="Current Customer">{t("status.active")}</option>
-                      ) : (
-                        <>
-                          <option value="Opportunities">{t("status.opportunities")}</option>
-                          <option value="Seguimiento">Seguimiento</option>
-                          <option value="Quoting">{t("status.quoting")}</option>
-                          <option value="Website">Website</option>
-                          <option value="Descartado">Descartado</option>
-                        </>
-                      )}
+                      <option value="Current Customer">{t("status.active")}</option>
+                      <option value="Opportunities">{t("status.opportunities")}</option>
+                      <option value="Seguimiento">Seguimiento</option>
+                      <option value="Quoting">{t("status.quoting")}</option>
+                      <option value="Website">Website</option>
+                      <option value="Descartado">Descartado</option>
                     </select>
                   </div>
                   <div>
@@ -1581,8 +1585,10 @@ export default function ClientsPage() {
                             clientId: "",
                             newStatus: "Descartado",
                             context: "add",
-                            addForm: { ...addForm, status: val }
+                            addForm: { ...addForm, status: val },
+                            previousStatus: addForm.status || "Quoting"
                           });
+                          setAddForm({ ...addForm, status: val });
                           setShowDiscardModal(true);
                         } else {
                           setAddForm({ ...addForm, status: val });
