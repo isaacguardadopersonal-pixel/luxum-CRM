@@ -305,6 +305,7 @@ export function useClients(statusFilter = "all") {
         await queryClient.invalidateQueries({ queryKey: ["clients"] });
       } catch (err) {
         console.error("Error actualizando en Supabase:", err);
+        alert("Error al guardar los cambios en la base de datos. Si falta la columna motivo_descarte, asegúrate de ejecutar el script SQL en Supabase: " + ((err as any)?.message || err));
         await queryClient.invalidateQueries({ queryKey: ["clients"] });
       }
     }
